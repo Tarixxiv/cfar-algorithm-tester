@@ -19,5 +19,5 @@ class NoiseGenerator:
                 line.tofile(file)
 
     def clear_noise_bin(self):
-        with open(self.file_path, "w") as file:
+        with open(self.file_path, "w"):
             pass
