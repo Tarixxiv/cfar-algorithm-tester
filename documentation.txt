@@ -18,3 +18,6 @@ Wybrałem pliki binarne jako sposób przechowywania danych, po zapoznaniu się z
 Dodałem wczytywanie plików binarnych do SignalGenerator
 
 
+Wszystkie funkcje związane z plikami bin wrzucam do BinFileManager.
+
+
