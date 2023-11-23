@@ -3,7 +3,9 @@ import os
 
 
 class FinalOutput:
-    def __init__(self, output_data, input_signal_properties):
+    def __init__(self, output_data=None, input_signal_properties=None):
+        if output_data is None:
+            output_data = []
         self.output_from_CFAR = output_data
         self.input_signal_properties = input_signal_properties
         self.false_detects = 0

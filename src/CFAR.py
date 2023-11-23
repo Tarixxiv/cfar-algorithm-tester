@@ -1,15 +1,21 @@
+import json
+
+
 class CFAR_CA:
     def __init__(self, number_of_guard_cells=None, number_of_training_cells=None, threshold_factor=None):
+        filepath = "../data/CFAR_parameters.json"
+        with open(filepath, "r") as read_file:
+            default_settings = json.load(read_file)
         if number_of_guard_cells is None:
-            pass
+            self.number_of_guard_cells = default_settings["CFAR"]["guard_cells"]
         else:
             self.number_of_guard_cells = number_of_guard_cells
         if number_of_training_cells is None:
-            pass
+            self.number_of_training_cells = default_settings["CFAR"]["training_cells"]
         else:
             self.number_of_training_cells = number_of_training_cells
         if threshold_factor is None:
-            pass
+            self.threshold_factor = default_settings["CFAR"]["threshold_factor"]
         else:
             self.threshold_factor = threshold_factor
 
@@ -79,3 +85,5 @@ class CFAR_GOCA(CFAR_CA):
 class CFAR_SOCA(CFAR_CA):
     def _choose_criteria(self, average_left, average_right):
         return min(average_left, average_right)
+
+test = CFAR_CA()
