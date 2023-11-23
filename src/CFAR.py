@@ -1,20 +1,22 @@
-class CFAROutputData:
-    def __init__(self):
-        self.threshold_value = 0
-        self.detected = False
-
-
 class CFAR_CA:
-    def __init__(self, number_of_guard_cells, number_of_training_cells, threshold_factor):
-        self.number_of_guard_cells = number_of_guard_cells
-        self.number_of_training_cells = number_of_training_cells
-        self.threshold_factor = threshold_factor
+    def __init__(self, number_of_guard_cells=None, number_of_training_cells=None, threshold_factor=None):
+        if number_of_guard_cells is None:
+            pass
+        else:
+            self.number_of_guard_cells = number_of_guard_cells
+        if number_of_training_cells is None:
+            pass
+        else:
+            self.number_of_training_cells = number_of_training_cells
+        if threshold_factor is None:
+            pass
+        else:
+            self.threshold_factor = threshold_factor
 
     def _choose_criteria(self, average_left, average_right):
         return (average_left + average_right) / 2
 
     def find_objects(self, data):
-        output_data = []
         last_right_training_cell_number = int(min(self.number_of_guard_cells / 2
                                                   + self.number_of_training_cells, len(data)))
         last_right_guard_cell_number = int(self.number_of_guard_cells / 2)
@@ -24,6 +26,8 @@ class CFAR_CA:
         sum_right = sum(data[last_right_guard_cell_number: last_right_training_cell_number])
         average_right = 0
         average_left = 0
+        threshold_value = []
+        detected = []
 
         for cell_under_test_number in range(len(data)):
             if first_left_training_cell_number - 1 >= 0:
@@ -49,12 +53,9 @@ class CFAR_CA:
             else:
                 threshold = self._choose_criteria(average_left, average_right) * self.threshold_factor
 
-            output_data.append(CFAROutputData())
-            output_data[cell_under_test_number].threshold_value = threshold
+            threshold_value.append(threshold)
             if threshold < data[cell_under_test_number]:
-                output_data[cell_under_test_number].detected = True
-            else:
-                output_data[cell_under_test_number].detected = False
+                detected.append(cell_under_test_number)
 
             last_right_training_cell_number += 1
             last_right_guard_cell_number += 1
@@ -67,7 +68,7 @@ class CFAR_CA:
                 first_left_training_cell_number -= 1
                 sum_left += data[first_left_training_cell_number - 1]
 
-        return output_data
+        return detected, threshold_value
 
 
 class CFAR_GOCA(CFAR_CA):
