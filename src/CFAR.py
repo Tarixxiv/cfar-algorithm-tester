@@ -2,7 +2,7 @@ import json
 
 
 class CFAR_CA:
-    def __init__(self, number_of_guard_cells=None, number_of_training_cells=None, threshold_factor=None):
+    def __init__(self, threshold_factor=None, number_of_guard_cells=None, number_of_training_cells=None):
         filepath = "../data/CFAR_parameters.json"
         with open(filepath, "r") as read_file:
             default_settings = json.load(read_file)
@@ -23,6 +23,7 @@ class CFAR_CA:
         return (average_left + average_right) / 2
 
     def find_objects(self, data):
+        data = [abs(x) for x in data]
         last_right_training_cell_number = int(min(self.number_of_guard_cells / 2
                                                   + self.number_of_training_cells, len(data)))
         last_right_guard_cell_number = int(self.number_of_guard_cells / 2)

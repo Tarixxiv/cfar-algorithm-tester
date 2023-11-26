@@ -22,7 +22,6 @@ if __name__ == '__main__':
         dict = json.load(file)
         locals().update(dict)
 
-
     noise = NoiseGenerator(SAMPLE_COUNT, SIGMA, NOISE_FILE_PATH)
     signal = SignalGenerator(DB, SIGMA, SIGNAL_INDEX_PATH)
     noiseFileManager = BinFileManager(NOISE_FILE_PATH)
@@ -31,7 +30,7 @@ if __name__ == '__main__':
     cfar = CFAR_GOCA()
 
     start_time = time()
-    end_tme = start_time + 60 * 60 * 2
+    end_tme = start_time + 30 #60 * 60 * 2
     line_cursor = 0
     output_to_file = FinalOutput()
     while time() < end_tme:
@@ -46,12 +45,16 @@ if __name__ == '__main__':
         signal.write_indexes_to_file(index_line_list)
 
         for signal_line, index_line in zip(noise_and_signal, index_line_list):
+            cfar.threshold_factor = 1
             signalProperties.index = [index_line]
             output_to_file.input_signal_properties = signalProperties
-            output_to_file.output_from_CFAR, trash = cfar.find_objects(signal_line)
-            output_to_file.analyze_data()
-            output_to_file.export_to_csv("../output/two_hour_simulation_results")
-            output_to_file.reset()
+            while cfar.threshold_factor <= 10:
+                output_to_file.output_from_CFAR, trash = cfar.find_objects(signal_line)
+                output_to_file.analyze_data()
+                output_to_file.export_to_csv("../output/two_hour_simulation_results_" + str(cfar.threshold_factor * 10)
+                                             + ".csv")
+                output_to_file.reset()
+                cfar.threshold_factor += 0.1
 
         line_cursor += LINE_COUNT
         print(line_cursor)

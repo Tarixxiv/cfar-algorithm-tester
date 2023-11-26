@@ -3,7 +3,7 @@ from cmath import sqrt
 
 
 class SignalGenerator:
-    def __init__(self, db, sigma,index_path):
+    def __init__(self, db, sigma, index_path):
         self.db = db
         self.sigma = sigma
         self.index_path = index_path
