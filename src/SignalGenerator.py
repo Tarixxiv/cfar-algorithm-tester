@@ -15,7 +15,7 @@ class SignalGenerator:
     def append_signal_to_noise(self, noise):
         indexes = []
         for i in range(len(noise)):
-            index = random.randint(0, len(noise[0]))
+            index = random.randint(0, len(noise[0]) - 1)
             indexes.append(index)
             noise[i][index] += self.calculate_amplitude()
         self.write_indexes_to_file(indexes)
