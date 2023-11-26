@@ -25,7 +25,7 @@ class FinalOutput:
         file_exists = os.path.exists(filepath)
         row = [self.dataset_number, self.false_detects, self.correct_detects, self.undetected_objects]
         with open(filepath, 'a', encoding='UTF8') as csv_file:
-            writer = csv.writer(csv_file)
+            writer = csv.writer(csv_file, lineterminator='\n')
             if not file_exists:
                 writer.writerow(self.header)
             writer.writerow(row)
