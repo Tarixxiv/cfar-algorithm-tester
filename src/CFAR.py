@@ -85,5 +85,3 @@ class CFAR_GOCA(CFAR_CA):
 class CFAR_SOCA(CFAR_CA):
     def _choose_criteria(self, average_left, average_right):
         return min(average_left, average_right)
-
-test = CFAR_CA()
