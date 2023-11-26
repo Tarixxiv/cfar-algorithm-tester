@@ -1,4 +1,6 @@
 import random
+from cmath import sqrt
+
 
 class SignalGenerator:
     def __init__(self, db, sigma,index_path):
@@ -8,8 +10,7 @@ class SignalGenerator:
 
     def calculate_amplitude(self):
         # 6 [dB] = 10*log(A^2/sigma^2)
-        # A = sqrt(10^0.6)
-        return 2
+        return sqrt(pow(10, 0.6)*pow(self.sigma, 2))
 
     def append_signal_to_noise(self, noise):
         indexes = []
