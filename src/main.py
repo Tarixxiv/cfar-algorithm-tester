@@ -34,7 +34,7 @@ if __name__ == '__main__':
     end_tme = start_time + 60 * 60 * 2
     line_cursor = 0
     output_to_file = FinalOutput()
-    while time() < end_tme:
+    for j in range(1000):
         noise_list = []
         for i in range(LINE_COUNT):
             line = noise.generate_noise_line()
@@ -44,14 +44,28 @@ if __name__ == '__main__':
         noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
         signalFileManager.append_to_file(noise_and_signal)
         signal.write_indexes_to_file(index_line_list)
+        print(j)
+        print(time()-start_time)
 
-        for signal_line, index_line in zip(noise_and_signal, index_line_list):
-            signalProperties.index = [index_line]
-            output_to_file.input_signal_properties = signalProperties
-            output_to_file.output_from_CFAR, trash = cfar.find_objects(signal_line)
-            output_to_file.analyze_data()
-            output_to_file.export_to_csv("../output/two_hour_simulation_results")
-            output_to_file.reset()
 
-        line_cursor += LINE_COUNT
-        print(line_cursor)
+    # while time() < end_tme:
+    #     noise_list = []
+    #     for i in range(LINE_COUNT):
+    #         line = noise.generate_noise_line()
+    #         noise_list.append(line)
+    #     noiseFileManager.append_to_file(noise_list)
+    #     # noise_list = noiseFileManager.read_file(line_cursor, line_cursor + LINE_COUNT)
+    #     noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
+    #     signalFileManager.append_to_file(noise_and_signal)
+    #     signal.write_indexes_to_file(index_line_list)
+    #
+    #     for signal_line, index_line in zip(noise_and_signal, index_line_list):
+    #         signalProperties.index = [index_line]
+    #         output_to_file.input_signal_properties = signalProperties
+    #         output_to_file.output_from_CFAR, trash = cfar.find_objects(signal_line)
+    #         output_to_file.analyze_data()
+    #         output_to_file.export_to_csv("../output/two_hour_simulation_results")
+    #         output_to_file.reset()
+    #
+    #     line_cursor += LINE_COUNT
+    #     print(line_cursor)
