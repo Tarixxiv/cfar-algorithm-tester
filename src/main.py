@@ -7,6 +7,14 @@ from BinFileManager import BinFileManager
 from time import time
 
 if __name__ == '__main__':
+    SAMPLE_COUNT = 0,
+    SIGMA = 0
+    DB = 0
+    LINE_COUNT = 0
+    NOISE_FILE_PATH = ""
+    SIGNAL_INDEX_PATH = ""
+    SIGNAL_FILE_PATH = ""
+
     dict = {}
     with open("../data/consts.json", 'r') as file:
         dict = json.load(file)
@@ -18,8 +26,6 @@ if __name__ == '__main__':
     signalFileManager = BinFileManager(SIGNAL_FILE_PATH)
     signalProperties = SignalProperties(SIGNAL_INDEX_PATH)
 
-
-
     end_tme = time() + 60 * 60 * 2
     line_cursor = 0
     while time() < end_tme:
@@ -29,12 +35,9 @@ if __name__ == '__main__':
             print(line)
             noise_list.append(line)
         noiseFileManager.append_to_file(noise_list)
-        noise_list = noiseFileManager.read_file(line_cursor, line_cursor + LINE_COUNT)
+        # noise_list = noiseFileManager.read_file(line_cursor, line_cursor + LINE_COUNT)
         noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
+        signalFileManager.append_to_file(noise_and_signal)
         signal.write_indexes_to_file(index_line_list)
-
-
-
-
 
         line_cursor += LINE_COUNT
