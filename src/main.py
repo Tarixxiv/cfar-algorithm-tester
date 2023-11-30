@@ -17,6 +17,7 @@ if __name__ == '__main__':
     NOISE_FILE_PATH = ""
     SIGNAL_INDEX_PATH = ""
     SIGNAL_FILE_PATH = ""
+    OUTPUT_FILE_PATH = ""
 
     with open("../data/consts.json", 'r') as file:
         dict = json.load(file)
@@ -28,33 +29,40 @@ if __name__ == '__main__':
     signalFileManager = BinFileManager(SIGNAL_FILE_PATH)
     signalProperties = SignalProperties(SIGNAL_INDEX_PATH)
     cfar = CFAR_GOCA()
-
-    start_time = time()
-    end_tme = start_time + 30 #60 * 60 * 2
-    line_cursor = 0
     output_to_file = FinalOutput()
-    while time() < end_tme:
-        noise_list = []
-        for i in range(LINE_COUNT):
-            line = noise.generate_noise_line()
-            noise_list.append(line)
-        noiseFileManager.append_to_file(noise_list)
-        # noise_list = noiseFileManager.read_file(line_cursor, line_cursor + LINE_COUNT)
-        noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
-        signalFileManager.append_to_file(noise_and_signal)
-        signal.write_indexes_to_file(index_line_list)
+    start_time = time()
 
+    noiseFileManager.clear_file()
+    signalFileManager.clear_file()
+    with open(OUTPUT_FILE_PATH, "w"):
+        pass
+    with open(SIGNAL_INDEX_PATH, 'w'):
+        pass
+
+    noise_list = []
+    for i in range(LINE_COUNT):
+        line = noise.generate_noise_line()
+        noise_list.append(line)
+    noiseFileManager.append_to_file(noise_list)
+    # noise_list = noiseFileManager.read_file(line_cursor, line_cursor + LINE_COUNT)
+    noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
+    # signalFileManager.append_to_file(noise_and_signal)
+    # signal.write_indexes_to_file(index_line_list)
+    time_per_parameter = 80  # 2 hrs / 90 parameter values
+
+    print(time() - start_time, "generation done")
+    for threshold_factor in range(10, 101):
+        cfar.threshold_factor = threshold_factor * 0.1
+        loop_start_time = time()
         for signal_line, index_line in zip(noise_and_signal, index_line_list):
-            cfar.threshold_factor = 1
             signalProperties.index = [index_line]
             output_to_file.input_signal_properties = signalProperties
-            while cfar.threshold_factor <= 10:
-                output_to_file.output_from_CFAR, trash = cfar.find_objects(signal_line)
-                output_to_file.analyze_data()
-                output_to_file.export_to_csv("../output/two_hour_simulation_results_" + str(cfar.threshold_factor * 10)
-                                             + ".csv")
-                output_to_file.reset()
-                cfar.threshold_factor += 0.1
+            output_to_file.output_from_CFAR, trash = cfar.find_objects(signal_line)
+            output_to_file.analyze_data()
+            if loop_start_time + time_per_parameter <= time():
+                print("ended due to time")
+                break
 
-        line_cursor += LINE_COUNT
-        print(line_cursor)
+        output_to_file.export_to_csv(OUTPUT_FILE_PATH)
+        output_to_file.reset()
+        print(time() - start_time)
