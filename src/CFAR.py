@@ -1,9 +1,10 @@
 import json
+import numpy as np
 
 
 class CFAR_CA:
     def __init__(self, number_of_guard_cells=None, number_of_training_cells=None, threshold_factor_min=None,
-                 threshold_factor_max=None):
+                 threshold_factor_max=None, threshold_factor_delta=None):
         filepath = "../data/CFAR_parameters.json"
         with open(filepath, "r") as read_file:
             default_settings = json.load(read_file)
@@ -23,6 +24,10 @@ class CFAR_CA:
             self.threshold_factor_max = default_settings["CFAR"]["threshold_factor_max"]
         else:
             self.threshold_factor_max = threshold_factor_max
+        if threshold_factor_max is None:
+            self.threshold_factor_delta = default_settings["CFAR"]["threshold_factor_delta"]
+        else:
+            self.threshold_factor_delta = threshold_factor_delta
 
     def _choose_criteria(self, average_left, average_right):
         return (average_left + average_right) / 2
@@ -39,9 +44,12 @@ class CFAR_CA:
         average_right = 0
         average_left = 0
         # threshold_value = [] # Can be used if you want to show threshold values on a plot
-        detected = [[] for _ in range((self.threshold_factor_max - self.threshold_factor_min + 1))]
-        detects_count = [0] * (self.threshold_factor_max - self.threshold_factor_min + 1)
-        false_detects_count = [0] * (self.threshold_factor_max - self.threshold_factor_min + 1)
+        detected = [[] for _ in range(int(round((self.threshold_factor_max - self.threshold_factor_min)
+                                      / self.threshold_factor_delta) + 1))]
+        detects_count = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
+                               self.threshold_factor_delta) + 1))
+        false_detects_count = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
+                                     self.threshold_factor_delta) + 1))
 
         for cell_under_test_number in range(len(data)):
             if first_left_training_cell_number - 1 >= 0:
@@ -60,7 +68,9 @@ class CFAR_CA:
                 average_left = sum_left / count_left
             if count_right > 0:
                 average_right = sum_right / count_right
-            for threshold_factor in range(self.threshold_factor_min, self.threshold_factor_max + 1):
+            for threshold_factor in np.arange(self.threshold_factor_min,
+                                          self.threshold_factor_max + self.threshold_factor_delta,
+                                          self.threshold_factor_delta):
                 if count_left <= 0:
                     threshold = average_right * threshold_factor
                 elif count_right <= 0:
@@ -70,11 +80,14 @@ class CFAR_CA:
 
                 # threshold_value.append(threshold)
                 if threshold < data[cell_under_test_number]:
-                    detected[threshold_factor - self.threshold_factor_min].append(cell_under_test_number)
+                    detected[int((threshold_factor - self.threshold_factor_min) /
+                                 self.threshold_factor_delta)].append(cell_under_test_number)
                     if cell_under_test_number in object_indexes:
-                        detects_count[threshold_factor - self.threshold_factor_min] += 1
+                        detects_count[int((threshold_factor - self.threshold_factor_min) /
+                                          self.threshold_factor_delta)] += 1
                     else:
-                        false_detects_count[threshold_factor - self.threshold_factor_min] += 1
+                        false_detects_count[int((threshold_factor - self.threshold_factor_min) /
+                                                self.threshold_factor_delta)] += 1
 
             last_right_training_cell_number += 1
             last_right_guard_cell_number += 1

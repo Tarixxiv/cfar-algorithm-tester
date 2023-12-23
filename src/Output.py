@@ -2,6 +2,7 @@ import csv
 import json
 import os
 import shutil
+import numpy as np
 
 
 class Probabilities:
@@ -40,7 +41,7 @@ class Probabilities:
 
 
 class ProbabilitiesForMultipleThresholdFactors:
-    def __init__(self, threshold_factor_min=None, threshold_factor_max=None):
+    def __init__(self, threshold_factor_min=None, threshold_factor_max=None, threshold_factor_delta=None):
         filepath = "../data/CFAR_parameters.json"
         with open(filepath, "r") as read_file:
             default_settings = json.load(read_file)
@@ -53,7 +54,11 @@ class ProbabilitiesForMultipleThresholdFactors:
         else:
             self.threshold_factor_max = threshold_factor_max
         self._probabilities = []
-        for i in range(self.threshold_factor_max - self.threshold_factor_min + 1):
+        if threshold_factor_delta is None:
+            self.threshold_factor_delta = default_settings["CFAR"]["threshold_factor_delta"]
+        else:
+            self.threshold_factor_delta = threshold_factor_delta
+        for i in range(int((self.threshold_factor_max - self.threshold_factor_min)/self.threshold_factor_delta + 1)):
             self._probabilities.append(Probabilities())
         self.header = ["threshold", "detection probability", "false detection probability"]
 
@@ -70,12 +75,14 @@ class ProbabilitiesForMultipleThresholdFactors:
             writer.writerow(self.header)
             index = 0
             for probability in self._probabilities:
-                row = [self.threshold_factor_min + index, probability.probability_of_detection,
-                       probability.probability_of_false_detection]
+                row = [self.threshold_factor_min + index * self.threshold_factor_delta,
+                       probability.probability_of_detection, probability.probability_of_false_detection]
                 writer.writerow(row)
                 index += 1
 
     def calculate_probabilities(self, detects_count, false_detects_count, data_len, number_of_objects=1):
-        for index in range(0, self.threshold_factor_max - self.threshold_factor_min + 1):
-            self._probabilities[index].calculate_probabilities(detects_count[index], false_detects_count[index],
-                                                               data_len, number_of_objects)
+        for index in np.arange(0, (self.threshold_factor_max -
+                                   self.threshold_factor_min) / self.threshold_factor_delta + 1):
+            self._probabilities[int(round(index))].calculate_probabilities(detects_count[int(round(index))],
+                                                                           false_detects_count[int(round(index))],
+                                                                           data_len, number_of_objects)
