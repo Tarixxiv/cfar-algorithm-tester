@@ -38,14 +38,15 @@ if __name__ == '__main__':
     for i in range(LINE_COUNT):
         line = noise.generate_noise_line()
         noise_list.append(line)
-
     noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
 
-    time_per_parameter = 80  # 2 hrs / 90 parameter values
+    parameter_value_range = [x * 0.1 for x in range(10, 101)]
+    execution_time_limit = 2 * 3600
+    time_per_parameter = execution_time_limit / len(parameter_value_range)
 
     print(time() - start_time, "generation done")
-    for threshold_factor in range(10, 101):
-        cfar.threshold_factor = threshold_factor * 0.1
+    for threshold_factor in parameter_value_range:
+        cfar.threshold_factor = threshold_factor
         loop_start_time = time()
         for signal_line, index_line in zip(noise_and_signal, index_line_list):
             signalProperties.index = [index_line]
