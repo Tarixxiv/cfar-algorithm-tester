@@ -1,7 +1,7 @@
 {
   "CFAR": {
-    "guard_cells": 2,
-    "training_cells": 20,
+    "guard_cells": 4,
+    "training_cells": 16,
     "threshold_factor": 2
   }
 }
