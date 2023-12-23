@@ -32,7 +32,7 @@ class CFAR_CA:
     def _choose_criteria(self, average_left, average_right):
         return (average_left + average_right) / 2
 
-    def find_objects(self, data, object_indexes=[]):
+    def find_objects(self, data, object_indexes):
         data = [abs(element) for element in data]
         last_right_training_cell_number = int(min(self.number_of_guard_cells / 2
                                                   + self.number_of_training_cells, len(data) - 1))

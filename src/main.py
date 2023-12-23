@@ -1,10 +1,12 @@
+import concurrent
 import json
+import multiprocessing
+from concurrent.futures import as_completed
 
 from NoiseGenerator import NoiseGenerator
-from SignalProperties import SignalProperties
 from SignalGenerator import SignalGenerator
 from time import time
-from Output import ProbabilitiesForMultipleThresholdFactors
+from ProbabilitiesForMultipleThresholdFactors import ProbabilitiesForMultipleThresholdFactors
 
 from src.CFAR import CFAR_GOCA
 
@@ -24,9 +26,7 @@ if __name__ == '__main__':
 
     noise = NoiseGenerator(SAMPLE_COUNT, SIGMA, NOISE_FILE_PATH)
     signal = SignalGenerator(DB, SIGMA, SIGNAL_INDEX_PATH)
-    signalProperties = SignalProperties(SIGNAL_INDEX_PATH)
-    cfar = CFAR_GOCA()
-    output_to_file = ProbabilitiesForMultipleThresholdFactors()
+
     start_time = time()
 
     with open(OUTPUT_FILE_PATH, "w"):
@@ -40,19 +40,38 @@ if __name__ == '__main__':
         noise_list.append(line)
     noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
 
-    parameter_value_range = [x * 0.1 for x in range(10, 101)]
-    execution_time_limit = 2 * 3600
-    time_per_parameter = execution_time_limit / len(parameter_value_range)
-
+    execution_time_limit = 10
     print(time() - start_time, "generation done")
 
     loop_start_time = time()
-    for signal_line, index_line in zip(noise_and_signal, index_line_list):
-        trash, detects_count, false_detects_count = cfar.find_objects(signal_line, [index_line])
-        output_to_file.calculate_probabilities(detects_count, false_detects_count, len(signal_line))
-        if loop_start_time + time_per_parameter <= time():
-            print("ended due to time")
-            break
+    results = []
+    detects_count = []
+    false_detects_count = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        cfar = CFAR_GOCA()
+        futures = []
+        for signal_line, index_line in zip(noise_and_signal, index_line_list):
+            futures.append(executor.submit(cfar.find_objects,
+                                           *(signal_line, [index_line])
+                                           ))
+        for future in as_completed(futures):
+            sample_detect_indexes, sample_detects_count, sample_false_detects_count = future.result()
+            if not detects_count:
+                detects_count = sample_detects_count
+            else:
+                detects_count = [sum(x) for x in zip(detects_count, sample_detects_count)]
+            if not false_detects_count:
+                false_detects_count = sample_false_detects_count
+            else:
+                false_detects_count = [sum(x) for x in zip(false_detects_count, sample_false_detects_count)]
 
-    output_to_file.export_to_csv("OUTPUT_FILE_PATH")
+            if loop_start_time + execution_time_limit >= time():
+                print("ended due to time", time() - loop_start_time)
+                executor.shutdown()
+                print("child processes killed", time() - loop_start_time)
+                break
+
+    output_to_file = ProbabilitiesForMultipleThresholdFactors()
+    output_to_file.calculate_probabilities(detects_count, false_detects_count, len(signal_line) * LINE_COUNT)
+    output_to_file.export_to_csv("../output/output.csv")
     print(time() - start_time)
