@@ -1,29 +1,24 @@
 import csv
+import json
 import os
+import shutil
 
 
-class FinalOutput:
-    def __init__(self, output_data=None, input_signal_properties=None):
-        if output_data is None:
-            output_data = []
-        self.output_from_CFAR = output_data
-        self.input_signal_properties = input_signal_properties
-        self.false_detects = 0
-        self.correct_detects = 0
-        self.undetected_objects = 0
-        self.header = ["dataset_number", "false_detects", "correct_detects", "undetected_objects"]
-        self.dataset_number = 0
-
-    def reset(self):
-        self.false_detects = 0
-        self.correct_detects = 0
-        self.undetected_objects = 0
+class Probabilities:
+    def __init__(self):
+        self.probability_of_detection = 0
+        self.probability_of_false_detection = 0
+        self.total_cells_number = 0
+        self.total_objects_number = 0
+        self.header = ["number_of_cells", "number_of_objects", "detection_probability", "false_detection_probability"]
 
     def export_to_csv(self, filepath=None):
         if filepath is None:
             filepath = "output_data_default_name.csv"
         file_exists = os.path.exists(filepath)
-        row = [self.dataset_number, self.false_detects, self.correct_detects, self.undetected_objects]
+        row = [self.total_cells_number, self.total_objects_number, self.probability_of_detection,
+               self.probability_of_false_detection]
+
         if not file_exists:
             with open(filepath, 'x', encoding='UTF8') as csv_file:
                 writer = csv.writer(csv_file, lineterminator='\n')
@@ -34,63 +29,53 @@ class FinalOutput:
                 writer = csv.writer(csv_file, lineterminator='\n')
                 writer.writerow(row)
 
-    def analyze_data(self):
-        object_number = 0
-        record_number = 0
-        while record_number < len(self.output_from_CFAR) and object_number < len(self.input_signal_properties.index):
-            if self.output_from_CFAR[record_number] > self.input_signal_properties.index[object_number]:
-                self.undetected_objects += 1
-                object_number += 1
-            elif self.output_from_CFAR[record_number] < self.input_signal_properties.index[object_number]:
-                self.false_detects += 1
-                record_number += 1
-            else:
-                self.correct_detects += 1
-                record_number += 1
-                object_number += 1
-        if record_number == len(self.output_from_CFAR):
-            self.undetected_objects += len(self.input_signal_properties.index) - object_number
-        elif object_number == len(self.input_signal_properties.index):
-            self.false_detects += len(self.output_from_CFAR) - record_number
+    def calculate_probabilities(self, detects_count, false_detects_count, data_len, number_of_objects=1):
+        self.probability_of_detection = self.probability_of_detection * self.total_objects_number + detects_count
+        self.probability_of_false_detection = (self.probability_of_false_detection * self.total_cells_number
+                                               + false_detects_count)
+        self.total_cells_number += data_len
+        self.total_objects_number += number_of_objects
+        self.probability_of_detection /= self.total_objects_number
+        self.probability_of_false_detection /= self.total_cells_number
 
 
-class FinalOutput2:
-    # new version of class FinalOutput
-    def __init__(self, cfar_thres_length):
-        # cfar_thres_length=self.threshold_factor_max - self.threshold_factor_min + 1     <- from class CFAR
-        self.false_detects = 0
-        self.correct_detects = 0
-        self.undetected_objects = 0
-        self.header = ["dataset_number", "false_detects", "correct_detects", "undetected_objects",
-                       "detection_probability", "false_alarm_probability"]
-        self.dataset_number = 0
-        # self.update_probabilities(self, cfar_thres_length)
-        self.pd = [0] * cfar_thres_length
-        self.pf = [0] * cfar_thres_length
-        self.loopIdx = 0
-        self.cfar_thres_length = cfar_thres_length
+class ProbabilitiesForMultipleThresholdFactors:
+    def __init__(self, threshold_factor_min=None, threshold_factor_max=None):
+        filepath = "../data/CFAR_parameters.json"
+        with open(filepath, "r") as read_file:
+            default_settings = json.load(read_file)
+        if threshold_factor_min is None:
+            self.threshold_factor_min = default_settings["CFAR"]["threshold_factor_min"]
+        else:
+            self.threshold_factor_min = threshold_factor_min
+        if threshold_factor_max is None:
+            self.threshold_factor_max = default_settings["CFAR"]["threshold_factor_max"]
+        else:
+            self.threshold_factor_max = threshold_factor_max
+        self._probabilities = []
+        for i in range(self.threshold_factor_max - self.threshold_factor_min + 1):
+            self._probabilities.append(Probabilities())
+        self.header = ["threshold", "detection probability", "false detection probability"]
 
-    def export_to_csv(self, filepath=None, false_detects=0, correct_detects=0, undetected_objects=0):
+    def export_to_csv(self, filepath):
         if filepath is None:
             filepath = "output_data_default_name.csv"
         file_exists = os.path.exists(filepath)
-        row = [self.dataset_number, false_detects, correct_detects, undetected_objects,
-               self.pd[self.loopIdx], self.pf[self.loopIdx]]
-        self.dataset_number = self.dataset_number+1
 
-        if not file_exists:
-            with open(filepath, 'x', encoding='UTF8') as csv_file:
-                writer = csv.writer(csv_file, lineterminator='\n')
-                writer.writerow(self.header)
+        if file_exists:
+            copy_filepath = os.path.dirname(filepath) + os.path.splitext(os.path.basename(filepath))[0] + "copy.csv"
+            shutil.copy2(filepath, copy_filepath)
+        with open(filepath, 'w', encoding='UTF8') as csv_file:
+            writer = csv.writer(csv_file, lineterminator='\n')
+            writer.writerow(self.header)
+            index = 0
+            for probability in self._probabilities:
+                row = [self.threshold_factor_min + index, probability.probability_of_detection,
+                       probability.probability_of_false_detection]
                 writer.writerow(row)
-        else:
-            with open(filepath, 'a', encoding='UTF8') as csv_file:
-                writer = csv.writer(csv_file, lineterminator='\n')
-                writer.writerow(row)
+                index += 1
 
-    def calculate_probabilities(self, false_detects_count, detects_count, data_len):
-        # data_len=len(data)  <- from class CFAR
-        for tIdx in range(self.cfar_thres_length):
-            self.pd[tIdx] = ((self.loopIdx-1)*self.pd(tIdx)+detects_count/data_len)/self.loopIdx
-            self.pf[tIdx] = ((self.loopIdx-1)*self.pf(tIdx)+false_detects_count/data_len)/self.loopIdx
-        self.loopIdx = self.loopIdx+1
+    def calculate_probabilities(self, detects_count, false_detects_count, data_len, number_of_objects=1):
+        for index in range(0, self.threshold_factor_max - self.threshold_factor_min + 1):
+            self._probabilities[index].calculate_probabilities(detects_count[index], false_detects_count[index],
+                                                               data_len, number_of_objects)

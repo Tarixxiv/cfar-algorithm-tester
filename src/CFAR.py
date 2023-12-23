@@ -28,6 +28,7 @@ class CFAR_CA:
         return (average_left + average_right) / 2
 
     def find_objects(self, data, object_indexes=[]):
+        data = [abs(element) for element in data]
         last_right_training_cell_number = int(min(self.number_of_guard_cells / 2
                                                   + self.number_of_training_cells, len(data) - 1))
         last_right_guard_cell_number = int(self.number_of_guard_cells / 2)
@@ -98,4 +99,3 @@ class CFAR_GOCA(CFAR_CA):
 class CFAR_SOCA(CFAR_CA):
     def _choose_criteria(self, average_left, average_right):
         return min(average_left, average_right)
-
