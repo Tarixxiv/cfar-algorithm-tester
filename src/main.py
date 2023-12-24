@@ -1,11 +1,12 @@
+import concurrent
 import json
+import multiprocessing
+from concurrent.futures import as_completed
 
 from NoiseGenerator import NoiseGenerator
-from SignalProperties import SignalProperties
 from SignalGenerator import SignalGenerator
-from BinFileManager import BinFileManager
 from time import time
-from Output import FinalOutput
+from ProbabilitiesForMultipleThresholdFactors import ProbabilitiesForMultipleThresholdFactors
 
 from src.CFAR import CFAR_GOCA
 
@@ -25,15 +26,9 @@ if __name__ == '__main__':
 
     noise = NoiseGenerator(SAMPLE_COUNT, SIGMA, NOISE_FILE_PATH)
     signal = SignalGenerator(DB, SIGMA, SIGNAL_INDEX_PATH)
-    noiseFileManager = BinFileManager(NOISE_FILE_PATH)
-    signalFileManager = BinFileManager(SIGNAL_FILE_PATH)
-    signalProperties = SignalProperties(SIGNAL_INDEX_PATH)
-    cfar = CFAR_GOCA()
-    output_to_file = FinalOutput()
+
     start_time = time()
 
-    noiseFileManager.clear_file()
-    signalFileManager.clear_file()
     with open(OUTPUT_FILE_PATH, "w"):
         pass
     with open(SIGNAL_INDEX_PATH, 'w'):
@@ -43,26 +38,40 @@ if __name__ == '__main__':
     for i in range(LINE_COUNT):
         line = noise.generate_noise_line()
         noise_list.append(line)
-    noiseFileManager.append_to_file(noise_list)
-    # noise_list = noiseFileManager.read_file(line_cursor, line_cursor + LINE_COUNT)
     noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
-    # signalFileManager.append_to_file(noise_and_signal)
-    # signal.write_indexes_to_file(index_line_list)
-    time_per_parameter = 80  # 2 hrs / 90 parameter values
 
+    execution_time_limit = 10
     print(time() - start_time, "generation done")
-    for threshold_factor in range(10, 101):
-        cfar.threshold_factor = threshold_factor * 0.1
-        loop_start_time = time()
+
+    loop_start_time = time()
+    results = []
+    detects_count = []
+    false_detects_count = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        cfar = CFAR_GOCA()
+        futures = []
         for signal_line, index_line in zip(noise_and_signal, index_line_list):
-            signalProperties.index = [index_line]
-            output_to_file.input_signal_properties = signalProperties
-            output_to_file.output_from_CFAR, trash = cfar.find_objects(signal_line)
-            output_to_file.analyze_data()
-            if loop_start_time + time_per_parameter <= time():
-                print("ended due to time")
+            futures.append(executor.submit(cfar.find_objects,
+                                           *(signal_line, [index_line])
+                                           ))
+        for future in as_completed(futures):
+            sample_detect_indexes, sample_detects_count, sample_false_detects_count = future.result()
+            if not detects_count:
+                detects_count = sample_detects_count
+            else:
+                detects_count = [sum(x) for x in zip(detects_count, sample_detects_count)]
+            if not false_detects_count:
+                false_detects_count = sample_false_detects_count
+            else:
+                false_detects_count = [sum(x) for x in zip(false_detects_count, sample_false_detects_count)]
+
+            if loop_start_time + execution_time_limit >= time():
+                print("ended due to time", time() - loop_start_time)
+                executor.shutdown()
+                print("child processes killed", time() - loop_start_time)
                 break
 
-        output_to_file.export_to_csv(OUTPUT_FILE_PATH)
-        output_to_file.reset()
-        print(time() - start_time)
+    output_to_file = ProbabilitiesForMultipleThresholdFactors()
+    output_to_file.calculate_probabilities(detects_count, false_detects_count, len(signal_line) * LINE_COUNT)
+    output_to_file.export_to_csv("../output/output.csv")
+    print(time() - start_time)
