@@ -13,23 +13,6 @@ class Probabilities:
         self.total_objects_number = 0
         self.header = ["number_of_cells", "number_of_objects", "detection_probability", "false_detection_probability"]
 
-    def export_to_csv(self, filepath=None):
-        if filepath is None:
-            filepath = "output_data_default_name.csv"
-        file_exists = os.path.exists(filepath)
-        row = [self.total_cells_number, self.total_objects_number, self.probability_of_detection,
-               self.probability_of_false_detection]
-
-        if not file_exists:
-            with open(filepath, 'x', encoding='UTF8') as csv_file:
-                writer = csv.writer(csv_file, lineterminator='\n')
-                writer.writerow(self.header)
-                writer.writerow(row)
-        else:
-            with open(filepath, 'a', encoding='UTF8') as csv_file:
-                writer = csv.writer(csv_file, lineterminator='\n')
-                writer.writerow(row)
-
     def calculate_probabilities(self, detects_count, false_detects_count, data_len, number_of_objects=1):
         self.probability_of_detection = self.probability_of_detection * self.total_objects_number + detects_count
         self.probability_of_false_detection = (self.probability_of_false_detection * self.total_cells_number
@@ -64,7 +47,7 @@ class ProbabilitiesForMultipleThresholdFactors:
 
     def export_to_csv(self, filepath):
         if filepath is None:
-            filepath = "output_data_default_name.csv"
+            filepath = "../output/output_data_default_name.csv"
         file_exists = os.path.exists(filepath)
 
         if file_exists:
