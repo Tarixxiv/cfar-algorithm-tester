@@ -2,7 +2,7 @@ import json
 import numpy as np
 
 
-class CFAR_CA:
+class CFAR:
     def __init__(self, number_of_guard_cells=None, number_of_training_cells=None, threshold_factor_min=None,
                  threshold_factor_max=None, threshold_factor_delta=None):
         filepath = "../data/CFAR_parameters.json"
@@ -29,8 +29,14 @@ class CFAR_CA:
         else:
             self.threshold_factor_delta = threshold_factor_delta
 
-    def _choose_criteria(self, average_left, average_right):
+    def _choose_criteria_CA(self, average_left, average_right):
         return (average_left + average_right) / 2
+
+    def _choose_criteria_SOCA(self, average_left, average_right):
+        return min(average_left, average_right)
+
+    def _choose_criteria_GOCA(self, average_left, average_right):
+        return max(average_left, average_right)
 
     def find_objects(self, data, object_indexes):
         data = [abs(element) for element in data]
@@ -43,13 +49,18 @@ class CFAR_CA:
         sum_right = sum(data[last_right_guard_cell_number: last_right_training_cell_number])
         average_right = 0
         average_left = 0
-        # threshold_value = [] # Can be used if you want to show threshold values on a plot
-        detected = [[] for _ in range(int(round((self.threshold_factor_max - self.threshold_factor_min)
-                                      / self.threshold_factor_delta) + 1))]
-        detects_count = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
-                               self.threshold_factor_delta) + 1))
-        false_detects_count = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
-                                     self.threshold_factor_delta) + 1))
+        detects_count_CA = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
+                                            self.threshold_factor_delta) + 1))
+        false_detects_count_CA = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
+                                                  self.threshold_factor_delta) + 1))
+        detects_count_GOCA = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
+                                              self.threshold_factor_delta) + 1))
+        false_detects_count_GOCA = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
+                                                    self.threshold_factor_delta) + 1))
+        detects_count_SOCA = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
+                                              self.threshold_factor_delta) + 1))
+        false_detects_count_SOCA = [0] * (int(round((self.threshold_factor_max - self.threshold_factor_min) /
+                                                    self.threshold_factor_delta) + 1))
 
         for cell_under_test_number in range(len(data)):
             if first_left_training_cell_number - 1 >= 0:
@@ -69,25 +80,42 @@ class CFAR_CA:
             if count_right > 0:
                 average_right = sum_right / count_right
             for threshold_factor in np.arange(self.threshold_factor_min,
-                                          self.threshold_factor_max + self.threshold_factor_delta,
-                                          self.threshold_factor_delta):
+                                              self.threshold_factor_max + self.threshold_factor_delta,
+                                              self.threshold_factor_delta):
                 if count_left <= 0:
-                    threshold = average_right * threshold_factor
+                    threshold_CA = average_right * threshold_factor
+                    threshold_SOCA = average_right * threshold_factor
+                    threshold_GOCA = average_right * threshold_factor
                 elif count_right <= 0:
-                    threshold = average_left * threshold_factor
+                    threshold_CA = average_left * threshold_factor
+                    threshold_SOCA = average_left * threshold_factor
+                    threshold_GOCA = average_left * threshold_factor
                 else:
-                    threshold = self._choose_criteria(average_left, average_right) * threshold_factor
+                    threshold_CA = self._choose_criteria_CA(average_left, average_right) * threshold_factor
+                    threshold_GOCA = self._choose_criteria_GOCA(average_left, average_right) * threshold_factor
+                    threshold_SOCA = self._choose_criteria_SOCA(average_left, average_right) * threshold_factor
 
-                # threshold_value.append(threshold)
-                if threshold < data[cell_under_test_number]:
-                    detected[int((threshold_factor - self.threshold_factor_min) /
-                                 self.threshold_factor_delta)].append(cell_under_test_number)
+                if threshold_CA < data[cell_under_test_number]:
                     if cell_under_test_number in object_indexes:
-                        detects_count[int((threshold_factor - self.threshold_factor_min) /
-                                          self.threshold_factor_delta)] += 1
+                        detects_count_CA[int((threshold_factor - self.threshold_factor_min) /
+                                             self.threshold_factor_delta)] += 1
                     else:
-                        false_detects_count[int((threshold_factor - self.threshold_factor_min) /
-                                                self.threshold_factor_delta)] += 1
+                        false_detects_count_CA[int((threshold_factor - self.threshold_factor_min) /
+                                                   self.threshold_factor_delta)] += 1
+                if threshold_GOCA < data[cell_under_test_number]:
+                    if cell_under_test_number in object_indexes:
+                        detects_count_GOCA[int((threshold_factor - self.threshold_factor_min) /
+                                               self.threshold_factor_delta)] += 1
+                    else:
+                        false_detects_count_GOCA[int((threshold_factor - self.threshold_factor_min) /
+                                                     self.threshold_factor_delta)] += 1
+                if threshold_SOCA < data[cell_under_test_number]:
+                    if cell_under_test_number in object_indexes:
+                        detects_count_SOCA[int((threshold_factor - self.threshold_factor_min) /
+                                               self.threshold_factor_delta)] += 1
+                    else:
+                        false_detects_count_SOCA[int((threshold_factor - self.threshold_factor_min) /
+                                                     self.threshold_factor_delta)] += 1
 
             last_right_training_cell_number += 1
             last_right_guard_cell_number += 1
@@ -101,14 +129,5 @@ class CFAR_CA:
                 first_left_training_cell_number -= 1
                 sum_left += data[first_left_training_cell_number - 1]
 
-        return detected, detects_count, false_detects_count
-
-
-class CFAR_GOCA(CFAR_CA):
-    def _choose_criteria(self, average_left, average_right):
-        return max(average_left, average_right)
-
-
-class CFAR_SOCA(CFAR_CA):
-    def _choose_criteria(self, average_left, average_right):
-        return min(average_left, average_right)
+        return (detects_count_CA, false_detects_count_CA, detects_count_GOCA, false_detects_count_GOCA,
+                detects_count_SOCA, false_detects_count_SOCA)
