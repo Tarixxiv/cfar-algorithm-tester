@@ -1,5 +1,4 @@
 import matplotlib.pyplot
-import numpy as np
 import matplotlib.pyplot as plt
 import csv
 import os
@@ -32,12 +31,12 @@ class CreatePlots:
                     self.inputs_list[which_row*3+i].append(row[i])
                 # number_of_row = which_row+1
 
-            for i in range(9):
+            for i in range(3):
                 # self.inputs_list[i] = [round(eval(j), 3) for j in self.inputs_list[i]]
-                self.inputs_list[i] = [eval(j) for j in self.inputs_list[i]]
+                self.inputs_list[i+3*which_row] = [eval(j) for j in self.inputs_list[i+3*which_row]]
                 if i % 3 != 0:
                     for j in range(len(self.inputs_list[i])):
-                        self.inputs_list[i][j] = self.inputs_list[i][j] * 100
+                        self.inputs_list[i+3*which_row][j] = self.inputs_list[i+3*which_row][j] * 100
 
     def draw_plots(self):
         fig, axs = plt.subplots(3)
@@ -60,6 +59,8 @@ class CreatePlots:
 
 
 cp = CreatePlots()
-cp.read_csv()
+cp.read_csv(0, "../output/outputCA.csv")
+cp.read_csv(1, "../output/outputGOCA.csv")
+cp.read_csv(2, "../output/outputSOCA.csv")
 cp.draw_plots()
 matplotlib.pyplot.show()
