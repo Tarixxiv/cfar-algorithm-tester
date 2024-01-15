@@ -48,12 +48,10 @@ def worker_task(time_limit, sample_count, sigma, db):
     execution_count = 0
     while(time() < start_time + time_limit):
         noise_and_signal, index_line_list = generate_noise_and_signal_sample(noise, signal)
-
         (detects_count_CA, false_detects_count_CA,
          detects_count_GOCA, false_detects_count_GOCA,
         detects_count_SOCA, false_detects_count_SOCA) = (cfar.find_objects(noise_and_signal[0],
                                                                            [index_line_list[0]]))
-
         total_detects_count_CA = add_element_wise(total_detects_count_CA, detects_count_CA)
         total_false_detects_count_CA = add_element_wise(total_false_detects_count_CA, false_detects_count_CA)
         total_detects_count_GOCA = add_element_wise(total_detects_count_GOCA, detects_count_GOCA)
@@ -62,6 +60,7 @@ def worker_task(time_limit, sample_count, sigma, db):
         total_false_detects_count_SOCA = add_element_wise(total_false_detects_count_SOCA,false_detects_count_SOCA)
         execution_count += 1
 
+    print("process finished in:", time() - start_time, "s")
     return (total_detects_count_CA, total_false_detects_count_CA, total_detects_count_GOCA,
             total_false_detects_count_GOCA, total_detects_count_SOCA, total_false_detects_count_SOCA, execution_count)
 
@@ -87,8 +86,10 @@ if __name__ == '__main__':
 
     futures = []
     total_execution_count = 0
-    with concurrent.futures.ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-        for i in range(multiprocessing.cpu_count()):
+    #workers_count = multiprocessing.cpu_count()
+    workers_count = 4
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers_count) as executor:
+        for i in range(workers_count):
             futures.append(executor.submit(worker_task, *(execution_time_limit,SAMPLE_COUNT, SIGMA, DB)))
         for future in as_completed(futures):
             (detects_count_CA, false_detects_count_CA,
