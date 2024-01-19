@@ -11,6 +11,8 @@ from SignalGenerator import SignalGenerator
 SAMPLE_COUNT = 0,
 SIGMA = 0
 DB = 0
+EXECUTION_TIME_LIMIT = 0
+WORKER_COUNT = 0
 LINE_COUNT = 0
 NOISE_FILE_PATH = ""
 SIGNAL_INDEX_PATH = ""
@@ -74,8 +76,6 @@ if __name__ == '__main__':
     with open(SIGNAL_INDEX_PATH, 'w'):
         pass
 
-    execution_time_limit = 15
-
     total_detects_count_CA = []
     total_false_detects_count_CA = []
     total_detects_count_GOCA = []
@@ -85,11 +85,10 @@ if __name__ == '__main__':
 
     futures = []
     total_execution_count = 0
-    #workers_count = multiprocessing.cpu_count()
-    workers_count = 4
-    with concurrent.futures.ProcessPoolExecutor(max_workers=workers_count) as executor:
-        for i in range(workers_count):
-            futures.append(executor.submit(worker_task, *(execution_time_limit,SAMPLE_COUNT, SIGMA, DB)))
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=WORKER_COUNT) as executor:
+        for i in range(WORKER_COUNT):
+            futures.append(executor.submit(worker_task, *(EXECUTION_TIME_LIMIT,SAMPLE_COUNT, SIGMA, DB)))
         for future in as_completed(futures):
             (detects_count_CA, false_detects_count_CA,
              detects_count_GOCA, false_detects_count_GOCA,
