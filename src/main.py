@@ -1,13 +1,12 @@
 import concurrent
 import json
-import multiprocessing
 from concurrent.futures import as_completed
-
-from NoiseGenerator import NoiseGenerator
-from SignalGenerator import SignalGenerator
 from time import time
-from ProbabilitiesForMultipleThresholdFactors import ProbabilitiesForMultipleThresholdFactors
+
 from CFAR import CFAR
+from NoiseGenerator import NoiseGenerator
+from ProbabilitiesForMultipleThresholdFactors import ProbabilitiesForMultipleThresholdFactors
+from SignalGenerator import SignalGenerator
 
 SAMPLE_COUNT = 0,
 SIGMA = 0
