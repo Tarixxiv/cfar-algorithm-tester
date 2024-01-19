@@ -14,10 +14,3 @@ Wstępny podział zadań 02.11 - 18.11
 
 
 Stworzyłem generator szumu korzystając z np.random.normal.
-Wybrałem pliki binarne jako sposób przechowywania danych, po zapoznaniu się z benchmarkiem : https://github.com/mverleg/array_storage_benchmark
-Dodałem wczytywanie plików binarnych do SignalGenerator
-
-
-Wszystkie funkcje związane z plikami bin wrzucam do BinFileManager.
-
-
