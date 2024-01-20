@@ -75,7 +75,7 @@ if __name__ == '__main__':
     with open(SIGNAL_INDEX_PATH, 'w'):
         pass
 
-    execution_time_limit = 15
+    execution_time_limit = 20
 
     total_detects_count_CA = []
     total_false_detects_count_CA = []
