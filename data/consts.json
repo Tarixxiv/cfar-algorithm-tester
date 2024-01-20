@@ -7,6 +7,5 @@
   "NOISE_FILE_PATH": "../data/noise.bin",
   "SIGNAL_FILE_PATH": "../data/signal.bin",
   "SIGNAL_INDEX_PATH": "../data/signal_objects.json",
-  "OUTPUT_FILE_PATH": "../output/two_hour_simulation_results.csv",
-
+  "OUTPUT_FILE_PATH": "../output/two_hour_simulation_results.csv"
 }
