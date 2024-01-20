@@ -10,7 +10,7 @@ class SignalGenerator:
 
     def calculate_amplitude(self):
         # 6 [dB] = 10*log(A^2/sigma^2)
-        return sqrt(pow(10, 0.6)*pow(self.sigma, 2))
+        return sqrt(pow(10, 0.6)*pow(self.sigma, 2)).real
 
     def append_signal_to_noise(self, noise):
         indexes = []
