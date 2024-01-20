@@ -1,11 +1,9 @@
 {"SAMPLE_COUNT": 2048,
   "LINE_COUNT": 90000,
-  "DB": 6,
+  "SNR": 6,
   "SIGMA": 1,
   "WORKER_COUNT": 4,
   "EXECUTION_TIME_LIMIT": 15,
-  "NOISE_FILE_PATH": "../data/noise.bin",
-  "SIGNAL_FILE_PATH": "../data/signal.bin",
   "SIGNAL_INDEX_PATH": "../data/signal_objects.json",
   "OUTPUT_FILE_PATH": "../output/two_hour_simulation_results.csv"
 }
