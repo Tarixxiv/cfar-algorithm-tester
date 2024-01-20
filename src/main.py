@@ -10,13 +10,11 @@ from SignalGenerator import SignalGenerator
 
 SAMPLE_COUNT = 0,
 SIGMA = 0
-DB = 0
+SNR = 0
 EXECUTION_TIME_LIMIT = 0
 WORKER_COUNT = 0
 LINE_COUNT = 0
-NOISE_FILE_PATH = ""
 SIGNAL_INDEX_PATH = ""
-SIGNAL_FILE_PATH = ""
 OUTPUT_FILE_PATH = ""
 
 def add_element_wise(list_a,list_b):
@@ -33,9 +31,9 @@ def generate_noise_and_signal_sample(noise_generator, signal_generator):
     noise_list.append(line)
     return signal_generator.append_signal_to_noise(noise_list)
 
-def worker_task(time_limit, sample_count, sigma, db):
-    noise = NoiseGenerator(sample_count, sigma, NOISE_FILE_PATH)
-    signal = SignalGenerator(db, sigma, SIGNAL_INDEX_PATH)
+def worker_task(time_limit, sample_count, sigma, SNR):
+    noise = NoiseGenerator(sample_count, sigma)
+    signal = SignalGenerator(SNR, sigma, SIGNAL_INDEX_PATH)
     cfar = CFAR()
 
     total_detects_count_CA = []
@@ -88,7 +86,7 @@ if __name__ == '__main__':
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=WORKER_COUNT) as executor:
         for i in range(WORKER_COUNT):
-            futures.append(executor.submit(worker_task, *(EXECUTION_TIME_LIMIT,SAMPLE_COUNT, SIGMA, DB)))
+            futures.append(executor.submit(worker_task, *(EXECUTION_TIME_LIMIT,SAMPLE_COUNT, SIGMA, SNR)))
         for future in as_completed(futures):
             (detects_count_CA, false_detects_count_CA,
              detects_count_GOCA, false_detects_count_GOCA,
