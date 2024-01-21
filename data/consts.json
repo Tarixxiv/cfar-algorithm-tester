@@ -1,5 +1,4 @@
 {"SAMPLE_COUNT": 2048,
-  "LINE_COUNT": 90000,
   "SNR": 6,
   "SIGMA": 1,
   "WORKER_COUNT": 4,
