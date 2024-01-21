@@ -28,20 +28,17 @@ class ProbabilitiesForMultipleThresholdFactors:
         filepath = "../data/CFAR_parameters.json"
         with open(filepath, "r") as read_file:
             default_settings = json.load(read_file)
+
         if threshold_factor_min is None:
-            self.threshold_factor_min = default_settings["CFAR"]["threshold_factor_min"]
-        else:
-            self.threshold_factor_min = threshold_factor_min
+            threshold_factor_min = default_settings["CFAR"]["threshold_factor_min"]
         if threshold_factor_max is None:
-            self.threshold_factor_max = default_settings["CFAR"]["threshold_factor_max"]
-        else:
-            self.threshold_factor_max = threshold_factor_max
+            threshold_factor_max = default_settings["CFAR"]["threshold_factor_max"]
         self._probabilities = []
         if threshold_factor_delta is None:
-            self.threshold_factor_delta = default_settings["CFAR"]["threshold_factor_delta"]
-        else:
-            self.threshold_factor_delta = threshold_factor_delta
-        for i in range(int((self.threshold_factor_max - self.threshold_factor_min)/self.threshold_factor_delta + 1)):
+            threshold_factor_delta = default_settings["CFAR"]["threshold_factor_delta"]
+        self.threshold_factor_list = np.arange(threshold_factor_min, threshold_factor_max +
+                                               threshold_factor_delta, threshold_factor_delta)
+        for i in self.threshold_factor_list:
             self._probabilities.append(Probabilities())
         self.header = ["threshold", "detection probability", "false detection probability"]
 
@@ -64,7 +61,6 @@ class ProbabilitiesForMultipleThresholdFactors:
                 index += 1
 
     def calculate_probabilities(self, detects_count, false_detects_count, data_len, number_of_objects=1):
-        for index in np.arange(0, (int(round(self.threshold_factor_max -
-                                   self.threshold_factor_min) / self.threshold_factor_delta + 1))):
+        for index in range(len(self.threshold_factor_list)):
             self._probabilities[index].calculate_probabilities(detects_count[index], false_detects_count[index],
                                                                data_len, number_of_objects)
