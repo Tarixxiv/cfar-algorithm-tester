@@ -55,8 +55,8 @@ class ProbabilitiesForMultipleThresholdFactors:
             writer.writerow(self.header)
             index = 0
             for probability in self._probabilities:
-                row = [self.threshold_factor_min + index * self.threshold_factor_delta,
-                       probability.probability_of_detection, probability.probability_of_false_detection]
+                row = [self.threshold_factor_list[index], probability.probability_of_detection,
+                       probability.probability_of_false_detection]
                 writer.writerow(row)
                 index += 1
 
