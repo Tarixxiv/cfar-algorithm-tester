@@ -63,9 +63,8 @@ class ProbabilitiesForMultipleThresholdFactors:
                 writer.writerow(row)
                 index += 1
 
-    def calculate_probabilities(self, detects_count, false_detects_count, data_len, number_of_objects):
-        for index in np.arange(0, (self.threshold_factor_max -
-                                   self.threshold_factor_min) / self.threshold_factor_delta + 1):
-            self._probabilities[int(round(index))].calculate_probabilities(detects_count[int(round(index))],
-                                                                           false_detects_count[int(round(index))],
-                                                                           data_len, number_of_objects)
+    def calculate_probabilities(self, detects_count, false_detects_count, data_len, number_of_objects=1):
+        for index in np.arange(0, (int(round(self.threshold_factor_max -
+                                   self.threshold_factor_min) / self.threshold_factor_delta + 1))):
+            self._probabilities[index].calculate_probabilities(detects_count[index], false_detects_count[index],
+                                                               data_len, number_of_objects)
