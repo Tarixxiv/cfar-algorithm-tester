@@ -110,3 +110,5 @@ if __name__ == '__main__':
         data_len = SAMPLE_COUNT * total_execution_count
         output_to_file.calculate_probabilities(detects_count, false_detects_count, data_len, total_execution_count)
         output_to_file.export_to_csv("../output/output" + name + ".csv")
+
+    print(total_execution_count, "simulations made")
