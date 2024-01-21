@@ -25,21 +25,20 @@ class CreatePlots:
             which_row = which_cfar
             for row in data[1:]:
                 for i in range(3):
-                    self.inputs_list[which_row*3+i].append(row[i])
+                    self.inputs_list[which_row * 3 + i].append(row[i])
 
             for i in range(3):
-                self.inputs_list[i+3*which_row] = [eval(j) for j in self.inputs_list[i+3*which_row]]
+                self.inputs_list[i + 3 * which_row] = [eval(j) for j in self.inputs_list[i + 3 * which_row]]
 
     def draw_plots(self):
         fig, axs = plt.subplots(3, 2)
         algorithms_names = ['CFAR CA', 'CFAR GOCA', 'CFAR SOCA']
 
         for i in range(3):
-
             axs[i, 0].semilogy(self.inputs_list[3 * i], self.inputs_list[3 * i + 1], color='green',
-                        label='probability of detection', nonpositive='clip')
+                               label='probability of detection', nonpositive='clip')
             axs[i, 0].semilogy(self.inputs_list[3 * i], self.inputs_list[3 * i + 2], color='red',
-                        label='probability of false detection', nonpositive='clip')
+                               label='probability of false detection', nonpositive='clip')
             axs[i, 0].set_title(algorithms_names[i], fontsize=15)
             axs[i, 0].legend(loc="lower left", title='Probabilities in %')
             axs[i, 0].grid(True)
