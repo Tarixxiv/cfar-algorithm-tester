@@ -32,8 +32,8 @@ class CFAR:
         self.threshold_factor_list = np.arange(threshold_factor_min,
                                                threshold_factor_max + threshold_factor_delta,
                                                threshold_factor_delta)
-        self.mean_left = []
-        self.mean_right = []
+        self._mean_left = []
+        self._mean_right = []
 
     def _choose_criteria_CA(self, average_left, average_right):
         return (average_left + average_right) / 2
@@ -50,25 +50,25 @@ class CFAR:
         threshold_SOCA = []
         self._calculate_means(signal)
 
-        for cell_under_test_number in range(len(self.mean_left)):
-            if self.mean_left[cell_under_test_number] is None:
-                threshold_CA.append(self.mean_right[cell_under_test_number] * threshold_factor)
-                threshold_SOCA.append(self.mean_right[cell_under_test_number] * threshold_factor)
-                threshold_GOCA.append(self.mean_right[cell_under_test_number] * threshold_factor)
-            elif self.mean_right[cell_under_test_number] is None:
-                threshold_CA.append(self.mean_left[cell_under_test_number] * threshold_factor)
-                threshold_SOCA.append(self.mean_left[cell_under_test_number] * threshold_factor)
-                threshold_GOCA.append(self.mean_left[cell_under_test_number] * threshold_factor)
+        for cell_under_test_number in range(len(self._mean_left)):
+            if self._mean_left[cell_under_test_number] is None:
+                threshold_CA.append(self._mean_right[cell_under_test_number] * threshold_factor)
+                threshold_SOCA.append(self._mean_right[cell_under_test_number] * threshold_factor)
+                threshold_GOCA.append(self._mean_right[cell_under_test_number] * threshold_factor)
+            elif self._mean_right[cell_under_test_number] is None:
+                threshold_CA.append(self._mean_left[cell_under_test_number] * threshold_factor)
+                threshold_SOCA.append(self._mean_left[cell_under_test_number] * threshold_factor)
+                threshold_GOCA.append(self._mean_left[cell_under_test_number] * threshold_factor)
             else:
                 threshold_CA.append(self._choose_criteria_CA(
-                    self.mean_left[cell_under_test_number],
-                    self.mean_right[cell_under_test_number]) * threshold_factor)
+                    self._mean_left[cell_under_test_number],
+                    self._mean_right[cell_under_test_number]) * threshold_factor)
                 threshold_GOCA.append(self._choose_criteria_GOCA(
-                    self.mean_left[cell_under_test_number],
-                    self.mean_right[cell_under_test_number]) * threshold_factor)
+                    self._mean_left[cell_under_test_number],
+                    self._mean_right[cell_under_test_number]) * threshold_factor)
                 threshold_SOCA.append(self._choose_criteria_SOCA(
-                    self.mean_left[cell_under_test_number],
-                    self.mean_right[cell_under_test_number]) * threshold_factor)
+                    self._mean_left[cell_under_test_number],
+                    self._mean_right[cell_under_test_number]) * threshold_factor)
         return threshold_CA, threshold_GOCA, threshold_SOCA
 
     def find_objects(self, signal, object_indexes):
@@ -83,24 +83,24 @@ class CFAR:
         for cell_under_test_number in range(len(signal)):
             index = 0
             for threshold_factor in self.threshold_factor_list:
-                if self.mean_left[cell_under_test_number] is None:
-                    threshold_CA = self.mean_right[cell_under_test_number] * threshold_factor
-                    threshold_SOCA = self.mean_right[cell_under_test_number] * threshold_factor
-                    threshold_GOCA = self.mean_right[cell_under_test_number] * threshold_factor
-                elif self.mean_right[cell_under_test_number] is None:
-                    threshold_CA = self.mean_left[cell_under_test_number] * threshold_factor
-                    threshold_SOCA = self.mean_left[cell_under_test_number] * threshold_factor
-                    threshold_GOCA = self.mean_left[cell_under_test_number] * threshold_factor
+                if self._mean_left[cell_under_test_number] is None:
+                    threshold_CA = self._mean_right[cell_under_test_number] * threshold_factor
+                    threshold_SOCA = self._mean_right[cell_under_test_number] * threshold_factor
+                    threshold_GOCA = self._mean_right[cell_under_test_number] * threshold_factor
+                elif self._mean_right[cell_under_test_number] is None:
+                    threshold_CA = self._mean_left[cell_under_test_number] * threshold_factor
+                    threshold_SOCA = self._mean_left[cell_under_test_number] * threshold_factor
+                    threshold_GOCA = self._mean_left[cell_under_test_number] * threshold_factor
                 else:
                     threshold_CA = self._choose_criteria_CA(
-                        self.mean_left[cell_under_test_number],
-                        self.mean_right[cell_under_test_number]) * threshold_factor
+                        self._mean_left[cell_under_test_number],
+                        self._mean_right[cell_under_test_number]) * threshold_factor
                     threshold_GOCA = self._choose_criteria_GOCA(
-                        self.mean_left[cell_under_test_number],
-                        self.mean_right[cell_under_test_number]) * threshold_factor
+                        self._mean_left[cell_under_test_number],
+                        self._mean_right[cell_under_test_number]) * threshold_factor
                     threshold_SOCA = self._choose_criteria_SOCA(
-                        self.mean_left[cell_under_test_number],
-                        self.mean_right[cell_under_test_number]) * threshold_factor
+                        self._mean_left[cell_under_test_number],
+                        self._mean_right[cell_under_test_number]) * threshold_factor
 
                 if threshold_CA < signal[cell_under_test_number]:
                     if cell_under_test_number in object_indexes:
@@ -131,8 +131,8 @@ class CFAR:
         first_left_guard_cell_number = int(-self.number_of_guard_cells / 2)
         sum_left = 0
         sum_right = sum(signal[last_right_guard_cell_number: last_right_training_cell_number])
-        self.mean_left = []
-        self.mean_right = []
+        self._mean_left = []
+        self._mean_right = []
         for cell_under_test_number in range(len(signal)):
             if first_left_training_cell_number - 1 >= 0:
                 sum_left -= signal[first_left_training_cell_number - 1]
@@ -148,13 +148,13 @@ class CFAR:
                                                                                       len(signal))
 
             if count_left > 0:
-                self.mean_left.append(sum_left / count_left)
+                self._mean_left.append(sum_left / count_left)
             else:
-                self.mean_left.append(None)
+                self._mean_left.append(None)
             if count_right > 0:
-                self.mean_right.append(sum_right / count_right)
+                self._mean_right.append(sum_right / count_right)
             else:
-                self.mean_right.append(None)
+                self._mean_right.append(None)
 
             last_right_training_cell_number += 1
             last_right_guard_cell_number += 1
