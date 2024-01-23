@@ -2,7 +2,7 @@
   "SNR": 6,
   "SIGMA": 1,
   "WORKER_COUNT": 4,
-  "EXECUTION_TIME_LIMIT": 15,
+  "EXECUTION_TIME_LIMIT": 9000,
   "SIGNAL_INDEX_PATH": "../data/signal_objects.json",
   "OUTPUT_FILE_PATH": "../output/two_hour_simulation_results.csv"
 }
