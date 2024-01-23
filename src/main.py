@@ -49,7 +49,7 @@ def worker_task(time_limit, sample_count, sigma, SNR):
         noise_and_signal, index_line_list = generate_noise_and_signal_sample(noise, signal)
         (detects_count_CA, false_detects_count_CA,
          detects_count_GOCA, false_detects_count_GOCA,
-        detects_count_SOCA, false_detects_count_SOCA) = (cfar.find_objects(noise_and_signal[0],
+        detects_count_SOCA, false_detects_count_SOCA) = (cfar.find_objects_for_multiple_threshold_offsets(noise_and_signal[0],
                                                                            [index_line_list[0]]))
         total_detects_count_CA = add_element_wise(total_detects_count_CA, detects_count_CA)
         total_false_detects_count_CA = add_element_wise(total_false_detects_count_CA, false_detects_count_CA)

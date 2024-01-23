@@ -5,7 +5,8 @@ import numpy as np
 class CFAR:
 
     def __init__(self, number_of_guard_cells=None, number_of_training_cells=None, threshold_factor_min=None,
-                 threshold_factor_max=None, threshold_factor_delta=None):
+                 threshold_factor_max=None, threshold_factor_delta=None, threshold_offset_min=None,
+                 threshold_offset_max=None, threshold_offset_delta=None):
         filepath = "../data/CFAR_parameters.json"
         with open(filepath, "r") as read_file:
             default_settings = json.load(read_file)
@@ -32,6 +33,21 @@ class CFAR:
         self.threshold_factor_list = np.arange(threshold_factor_min,
                                                threshold_factor_max + threshold_factor_delta,
                                                threshold_factor_delta)
+        if threshold_offset_min is None:
+            threshold_offset_min = default_settings["CFAR"]["threshold_offset_min"]
+        else:
+            threshold_offset_min = threshold_offset_min
+        if threshold_offset_max is None:
+            threshold_offset_max = default_settings["CFAR"]["threshold_offset_max"]
+        else:
+            threshold_offset_max = threshold_offset_max
+        if threshold_offset_delta is None:
+            threshold_offset_delta = default_settings["CFAR"]["threshold_offset_delta"]
+        else:
+            threshold_offset_delta = threshold_offset_delta
+        self.threshold_offset_list = np.arange(threshold_offset_min,
+                                               threshold_offset_max + threshold_offset_delta,
+                                               threshold_offset_delta)
         self._mean_left = []
         self._mean_right = []
 
@@ -121,7 +137,56 @@ class CFAR:
 
         return (detects_count_CA, false_detects_count_CA, detects_count_GOCA, false_detects_count_GOCA,
                 detects_count_SOCA, false_detects_count_SOCA)
+    def find_objects_for_multiple_threshold_offsets(self, signal, object_indexes):
+        self._calculate_means(signal)
+        detects_count_CA = [0] * len(self.threshold_offset_list)
+        false_detects_count_CA = [0] * len(self.threshold_offset_list)
+        detects_count_GOCA = [0] * len(self.threshold_offset_list)
+        false_detects_count_GOCA = [0] * len(self.threshold_offset_list)
+        detects_count_SOCA = [0] * len(self.threshold_offset_list)
+        false_detects_count_SOCA = [0] * len(self.threshold_offset_list)
 
+        for cell_under_test_number in range(len(signal)):
+            index = 0
+            for threshold_offset in self.threshold_offset_list:
+                if self._mean_left[cell_under_test_number] is None:
+                    threshold_CA = self._mean_right[cell_under_test_number] + threshold_offset
+                    threshold_SOCA = self._mean_right[cell_under_test_number] + threshold_offset
+                    threshold_GOCA = self._mean_right[cell_under_test_number] + threshold_offset
+                elif self._mean_right[cell_under_test_number] is None:
+                    threshold_CA = self._mean_left[cell_under_test_number] + threshold_offset
+                    threshold_SOCA = self._mean_left[cell_under_test_number] + threshold_offset
+                    threshold_GOCA = self._mean_left[cell_under_test_number] + threshold_offset
+                else:
+                    threshold_CA = self._choose_criteria_CA(
+                        self._mean_left[cell_under_test_number],
+                        self._mean_right[cell_under_test_number]) + threshold_offset
+                    threshold_GOCA = self._choose_criteria_GOCA(
+                        self._mean_left[cell_under_test_number],
+                        self._mean_right[cell_under_test_number]) + threshold_offset
+                    threshold_SOCA = self._choose_criteria_SOCA(
+                        self._mean_left[cell_under_test_number],
+                        self._mean_right[cell_under_test_number]) + threshold_offset
+
+                if threshold_CA < signal[cell_under_test_number]:
+                    if cell_under_test_number in object_indexes:
+                        detects_count_CA[index] += 1
+                    else:
+                        false_detects_count_CA[index] += 1
+                if threshold_GOCA < signal[cell_under_test_number]:
+                    if cell_under_test_number in object_indexes:
+                        detects_count_GOCA[index] += 1
+                    else:
+                        false_detects_count_GOCA[index] += 1
+                if threshold_SOCA < signal[cell_under_test_number]:
+                    if cell_under_test_number in object_indexes:
+                        detects_count_SOCA[index] += 1
+                    else:
+                        false_detects_count_SOCA[index] += 1
+                index += 1
+
+        return (detects_count_CA, false_detects_count_CA, detects_count_GOCA, false_detects_count_GOCA,
+                detects_count_SOCA, false_detects_count_SOCA)
     def _calculate_means(self, signal):
         signal = [abs(element) for element in signal]
         last_right_training_cell_number = int(min(self.number_of_guard_cells / 2

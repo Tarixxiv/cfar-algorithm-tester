@@ -46,7 +46,7 @@ class CreatePlots:
             axs[i, 0].set_ylim(0.00000001, 1)
             axs[i, 0].set_xlabel('threshold value')
 
-            axs[i, 1].plot(self.inputs_list[3 * i + 1], self.inputs_list[3 * i + 2], color='black')
+            axs[i, 1].loglog(self.inputs_list[3 * i + 1], self.inputs_list[3 * i + 2], color='black')
             axs[i, 1].set_title(algorithms_names[i], fontsize=15)
             axs[i, 1].grid(True)
             axs[i, 1].set_xlabel('Probability of false detection')
