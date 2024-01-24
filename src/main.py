@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=WORKER_COUNT) as executor:
         for i in range(WORKER_COUNT):
-            futures.append(executor.submit(worker_task, *(EXECUTION_TIME_LIMIT,SAMPLE_COUNT, SIGMA, SNR)))
+            futures.append(executor.submit(worker_task, *(EXECUTION_TIME_LIMIT, SAMPLE_COUNT, SIGMA, SNR)))
         for future in as_completed(futures):
             (detects_count_CA, false_detects_count_CA,
              detects_count_GOCA, false_detects_count_GOCA,

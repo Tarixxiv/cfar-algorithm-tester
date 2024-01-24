@@ -88,6 +88,7 @@ class CFAR:
         return threshold_CA, threshold_GOCA, threshold_SOCA
 
     def find_objects(self, signal, object_indexes):
+        signal = [abs(element) for element in signal]
         self._calculate_means(signal)
         detects_count_CA = [0] * len(self.threshold_factor_list)
         false_detects_count_CA = [0] * len(self.threshold_factor_list)
@@ -137,7 +138,9 @@ class CFAR:
 
         return (detects_count_CA, false_detects_count_CA, detects_count_GOCA, false_detects_count_GOCA,
                 detects_count_SOCA, false_detects_count_SOCA)
+
     def find_objects_for_multiple_threshold_offsets(self, signal, object_indexes):
+        signal = [abs(element) for element in signal]
         self._calculate_means(signal)
         detects_count_CA = [0] * len(self.threshold_offset_list)
         false_detects_count_CA = [0] * len(self.threshold_offset_list)
@@ -188,7 +191,7 @@ class CFAR:
         return (detects_count_CA, false_detects_count_CA, detects_count_GOCA, false_detects_count_GOCA,
                 detects_count_SOCA, false_detects_count_SOCA)
     def _calculate_means(self, signal):
-        signal = [abs(element) for element in signal]
+
         last_right_training_cell_number = int(min(self.number_of_guard_cells / 2
                                                   + self.number_of_training_cells, len(signal) - 1))
         last_right_guard_cell_number = int(self.number_of_guard_cells / 2)
