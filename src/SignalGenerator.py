@@ -18,15 +18,3 @@ class SignalGenerator:
             indexes.append(index)
             noise[i][index] += self.calculate_amplitude()
         return noise, indexes
-
-    def write_indexes_to_file(self, index_line_list):
-        indexes_as_strings = [str(x) + ',' for x in index_line_list]
-        with open(self.index_path, "a") as file:
-            for i in indexes_as_strings:
-                file.writelines(i)
-                file.writelines('\n')
-        with open(self.index_path, 'r') as file:
-            l = file.readlines()
-        lists = []
-        for string in l:
-            lists.append(string.split(","))
