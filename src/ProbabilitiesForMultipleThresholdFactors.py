@@ -47,7 +47,8 @@ class ProbabilitiesForMultipleThresholdFactors:
         file_exists = os.path.exists(filepath)
 
         if file_exists:
-            copy_filepath = os.path.dirname(filepath) + os.path.splitext(os.path.basename(filepath))[0] + "copy.csv"
+            copy_filepath = (os.path.dirname(filepath) + "/" + os.path.splitext(os.path.basename(filepath))[0]
+                             + "_old.csv")
             shutil.copy2(filepath, copy_filepath)
         with open(filepath, 'w', encoding='UTF8') as csv_file:
             writer = csv.writer(csv_file, lineterminator='\n')
