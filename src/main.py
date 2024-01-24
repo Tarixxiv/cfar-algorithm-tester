@@ -1,77 +1,114 @@
 import concurrent
 import json
-import multiprocessing
 from concurrent.futures import as_completed
-
-from NoiseGenerator import NoiseGenerator
-from SignalGenerator import SignalGenerator
 from time import time
-from ProbabilitiesForMultipleThresholdFactors import ProbabilitiesForMultipleThresholdFactors
 
-from src.CFAR import CFAR_GOCA
+from CFAR import CFAR
+from NoiseGenerator import NoiseGenerator
+from ProbabilitiesForMultipleThresholdFactors import ProbabilitiesForMultipleThresholdFactors
+from SignalGenerator import SignalGenerator
+
+SAMPLE_COUNT = 0,
+SIGMA = 0
+SNR = 0
+EXECUTION_TIME_LIMIT = 0
+WORKER_COUNT = 0
+LINE_COUNT = 0
+SIGNAL_INDEX_PATH = ""
+OUTPUT_FILE_PATH = ""
+
+def add_element_wise(list_a,list_b):
+    if not list_a:
+        return list_b
+    elif not list_b:
+        return list_a
+    else:
+        return [sum(x) for x in zip(list_a, list_b)]
+
+def generate_noise_and_signal_sample(noise_generator, signal_generator):
+    noise_list = []
+    line = noise_generator.generate_noise_line()
+    noise_list.append(line)
+    return signal_generator.append_signal_to_noise(noise_list)
+
+def worker_task(time_limit, sample_count, sigma, SNR):
+    noise = NoiseGenerator(sample_count, sigma)
+    signal = SignalGenerator(SNR, sigma, SIGNAL_INDEX_PATH)
+    cfar = CFAR()
+
+    total_detects_count_CA = []
+    total_false_detects_count_CA = []
+    total_detects_count_GOCA = []
+    total_false_detects_count_GOCA = []
+    total_detects_count_SOCA = []
+    total_false_detects_count_SOCA = []
+
+    start_time = time()
+    execution_count = 0
+    while(time() < start_time + time_limit):
+        noise_and_signal, index_line_list = generate_noise_and_signal_sample(noise, signal)
+        (detects_count_CA, false_detects_count_CA,
+         detects_count_GOCA, false_detects_count_GOCA,
+        detects_count_SOCA, false_detects_count_SOCA) = (cfar.find_objects_for_multiple_threshold_offsets(noise_and_signal[0],
+                                                                           [index_line_list[0]]))
+        total_detects_count_CA = add_element_wise(total_detects_count_CA, detects_count_CA)
+        total_false_detects_count_CA = add_element_wise(total_false_detects_count_CA, false_detects_count_CA)
+        total_detects_count_GOCA = add_element_wise(total_detects_count_GOCA, detects_count_GOCA)
+        total_false_detects_count_GOCA = add_element_wise(total_false_detects_count_GOCA, false_detects_count_GOCA)
+        total_detects_count_SOCA = add_element_wise(total_detects_count_SOCA,detects_count_SOCA)
+        total_false_detects_count_SOCA = add_element_wise(total_false_detects_count_SOCA,false_detects_count_SOCA)
+        execution_count += 1
+
+    print("process finished in:", time() - start_time, "s")
+    return (total_detects_count_CA, total_false_detects_count_CA, total_detects_count_GOCA,
+            total_false_detects_count_GOCA, total_detects_count_SOCA, total_false_detects_count_SOCA, execution_count)
+
 
 if __name__ == '__main__':
-    SAMPLE_COUNT = 0,
-    SIGMA = 0
-    DB = 0
-    LINE_COUNT = 0
-    NOISE_FILE_PATH = ""
-    SIGNAL_INDEX_PATH = ""
-    SIGNAL_FILE_PATH = ""
-    OUTPUT_FILE_PATH = ""
-
     with open("../data/consts.json", 'r') as file:
         dict = json.load(file)
         locals().update(dict)
-
-    noise = NoiseGenerator(SAMPLE_COUNT, SIGMA, NOISE_FILE_PATH)
-    signal = SignalGenerator(DB, SIGMA, SIGNAL_INDEX_PATH)
-
-    start_time = time()
 
     with open(OUTPUT_FILE_PATH, "w"):
         pass
     with open(SIGNAL_INDEX_PATH, 'w'):
         pass
 
-    noise_list = []
-    for i in range(LINE_COUNT):
-        line = noise.generate_noise_line()
-        noise_list.append(line)
-    noise_and_signal, index_line_list = signal.append_signal_to_noise(noise_list)
+    total_detects_count_CA = []
+    total_false_detects_count_CA = []
+    total_detects_count_GOCA = []
+    total_false_detects_count_GOCA = []
+    total_detects_count_SOCA = []
+    total_false_detects_count_SOCA = []
 
-    execution_time_limit = 10
-    print(time() - start_time, "generation done")
+    futures = []
+    total_execution_count = 0
 
-    loop_start_time = time()
-    results = []
-    detects_count = []
-    false_detects_count = []
-    with concurrent.futures.ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-        cfar = CFAR_GOCA()
-        futures = []
-        for signal_line, index_line in zip(noise_and_signal, index_line_list):
-            futures.append(executor.submit(cfar.find_objects,
-                                           *(signal_line, [index_line])
-                                           ))
+    with concurrent.futures.ProcessPoolExecutor(max_workers=WORKER_COUNT) as executor:
+        for i in range(WORKER_COUNT):
+            futures.append(executor.submit(worker_task, *(EXECUTION_TIME_LIMIT, SAMPLE_COUNT, SIGMA, SNR)))
         for future in as_completed(futures):
-            sample_detect_indexes, sample_detects_count, sample_false_detects_count = future.result()
-            if not detects_count:
-                detects_count = sample_detects_count
-            else:
-                detects_count = [sum(x) for x in zip(detects_count, sample_detects_count)]
-            if not false_detects_count:
-                false_detects_count = sample_false_detects_count
-            else:
-                false_detects_count = [sum(x) for x in zip(false_detects_count, sample_false_detects_count)]
+            (detects_count_CA, false_detects_count_CA,
+             detects_count_GOCA, false_detects_count_GOCA,
+             detects_count_SOCA, false_detects_count_SOCA, execution_count) = future.result()
 
-            if loop_start_time + execution_time_limit >= time():
-                print("ended due to time", time() - loop_start_time)
-                executor.shutdown()
-                print("child processes killed", time() - loop_start_time)
-                break
+            total_detects_count_CA = add_element_wise(total_detects_count_CA, detects_count_CA)
+            total_false_detects_count_CA = add_element_wise(total_false_detects_count_CA, false_detects_count_CA)
+            total_detects_count_GOCA = add_element_wise(total_detects_count_GOCA, detects_count_GOCA)
+            total_false_detects_count_GOCA = add_element_wise(total_false_detects_count_GOCA, false_detects_count_GOCA)
+            total_detects_count_SOCA = add_element_wise(total_detects_count_SOCA, detects_count_SOCA)
+            total_false_detects_count_SOCA = add_element_wise(total_false_detects_count_SOCA, false_detects_count_SOCA)
+            total_execution_count += execution_count
 
-    output_to_file = ProbabilitiesForMultipleThresholdFactors()
-    output_to_file.calculate_probabilities(detects_count, false_detects_count, len(signal_line) * LINE_COUNT)
-    output_to_file.export_to_csv("../output/output.csv")
-    print(time() - start_time)
+    algorithm_names = ["CA", "GOCA", "SOCA"]
+    total_detect_list = [total_detects_count_CA, total_detects_count_GOCA, total_detects_count_SOCA]
+    total_false_detect_list = [total_false_detects_count_CA,
+                               total_false_detects_count_GOCA, total_false_detects_count_SOCA]
+
+    for name, detects_count, false_detects_count in zip(algorithm_names, total_detect_list, total_false_detect_list):
+        output_to_file = ProbabilitiesForMultipleThresholdFactors()
+        data_len = SAMPLE_COUNT * total_execution_count
+        output_to_file.calculate_probabilities(detects_count, false_detects_count, data_len, total_execution_count)
+        output_to_file.export_to_csv("../output/output" + name + ".csv")
+
+    print(total_execution_count, "simulations made")
