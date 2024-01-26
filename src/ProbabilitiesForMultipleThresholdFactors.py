@@ -24,7 +24,7 @@ class Probabilities:
 
 class ProbabilitiesForMultipleThresholdFactors:
     def __init__(self, threshold_factor_min=None, threshold_factor_max=None, threshold_factor_delta=None):
-        filepath = "../data/CFAR_parameters.json"
+        filepath = "../config/CFAR_parameters.json"
         with open(filepath, "r") as read_file:
             default_settings = json.load(read_file)
 
