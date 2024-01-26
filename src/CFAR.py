@@ -11,7 +11,7 @@ class CFAR:
 
     def __init__(self, number_of_guard_cells=None, number_of_training_cells=None, threshold_factor_min=None,
                  threshold_factor_max=None, threshold_factor_delta=None):
-        filepath = "../data/CFAR_parameters.json"
+        filepath = "../config/CFAR_parameters.json"
         with open(filepath, "r") as read_file:
             default_settings = json.load(read_file)
         if number_of_guard_cells is None:

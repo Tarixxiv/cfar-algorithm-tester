@@ -63,7 +63,7 @@ def worker_task(time_limit, sample_count, sigma, db):
 
 
 if __name__ == '__main__':
-    with open("../data/consts.json", 'r') as file:
+    with open("../config/consts.json", 'r') as file:
         dict = json.load(file)
         locals().update(dict)
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     with open(SIGNAL_INDEX_PATH, 'w'):
         pass
 
-    execution_time_limit = 180
+    execution_time_limit = 300
 
     futures = []
     total_execution_count = 0
