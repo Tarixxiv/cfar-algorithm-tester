@@ -3,6 +3,7 @@
 #include <cMath>
 #include <queue>
 #include <fstream>
+#include <chrono>
 
 #include <random>
 
@@ -96,8 +97,8 @@ public:
 class CFAR
 {
 private:
-    unsigned int threshold_factor_table_size = 0;
-    float* pfThresholdFactorTable = NULL;
+    unsigned int tested_parameters_table_size = 0;
+    float* tested_parameters_table = NULL;
     int number_of_guard_cells = 0;
     int number_of_training_cells = 0;
 public:
@@ -118,19 +119,19 @@ public:
     {
         this->number_of_guard_cells = number_of_guard_cells;
         this->number_of_training_cells = number_of_training_cells;
-        threshold_factor_table_size = (threshold_factor_max - threshold_factor_min) / threshold_factor_delta;
-        if ((threshold_factor_max - threshold_factor_min) / threshold_factor_delta - ((float)threshold_factor_table_size) >= 0.5)
-            threshold_factor_table_size++;
-        pfThresholdFactorTable = new float[threshold_factor_table_size];
-        for (int iIndex = 0; iIndex < threshold_factor_table_size; iIndex++)
+        tested_parameters_table_size = (threshold_factor_max - threshold_factor_min) / threshold_factor_delta;
+        if ((threshold_factor_max - threshold_factor_min) / threshold_factor_delta - ((float)tested_parameters_table_size) >= 0.5)
+            tested_parameters_table_size++;
+        tested_parameters_table = new float[tested_parameters_table_size];
+        for (int iIndex = 0; iIndex < tested_parameters_table_size; iIndex++)
         {
-            pfThresholdFactorTable[iIndex] = threshold_factor_min + threshold_factor_delta * iIndex;
+            tested_parameters_table[iIndex] = threshold_factor_min + threshold_factor_delta * iIndex;
         }
     }
 
     ~CFAR()
     {
-        delete[] pfThresholdFactorTable;
+        delete[] tested_parameters_table;
     }
 
     float calculate_threshold(float average_left, float average_right, float average_center, eCFAR_Types cfar_type)
@@ -165,11 +166,11 @@ public:
         return thresholds;
     }
 
-    TwoDimensionalTableOfDoubles find_objects(float signal[], unsigned int signal_length, queue<int> object_indexes)
+    TwoDimensionalTableOfDoubles find_objects_for_multiple_threshold_factors(float signal[], unsigned int signal_length, queue<int> object_indexes)
     {
         TwoDimensionalTableOfFloats means = calculate_means(signal, signal_length);
-        TwoDimensionalTableOfDoubles detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, threshold_factor_table_size);
-        for (int threshold_factor_index = 0; threshold_factor_index < threshold_factor_table_size; threshold_factor_index++)
+        TwoDimensionalTableOfDoubles detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, tested_parameters_table_size);
+        for (int threshold_factor_index = 0; threshold_factor_index < tested_parameters_table_size; threshold_factor_index++)
         {
             for (eCFAR_Types algorithm_type = (eCFAR_Types)0; algorithm_type < end_of_enum; algorithm_type = (eCFAR_Types)((int)algorithm_type + 1))
             {
@@ -178,7 +179,7 @@ public:
                 for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
                 {
 
-                    float threshold = (pfThresholdFactorTable[threshold_factor_index] * calculate_threshold(means.table_pointer[LEFT][cell_under_test_number], means.table_pointer[RIGHT][cell_under_test_number], means.table_pointer[CENTER][cell_under_test_number], algorithm_type) * pfThresholdFactorTable[threshold_factor_index]);
+                    float threshold = (calculate_threshold(means.table_pointer[LEFT][cell_under_test_number], means.table_pointer[RIGHT][cell_under_test_number], means.table_pointer[CENTER][cell_under_test_number], algorithm_type) * tested_parameters_table[threshold_factor_index]);
 
                     if (threshold < signal[cell_under_test_number])
                     {
@@ -190,6 +191,40 @@ public:
                         else
                         {
                             detects_and_false_detects_count.table_pointer[3 + algorithm_type][threshold_factor_index] += 1;
+                        }
+                    }
+                }
+            }
+        }
+        means.destructor_lock = false;
+        detects_and_false_detects_count.destructor_lock = true;
+        return detects_and_false_detects_count;
+    }
+    TwoDimensionalTableOfDoubles find_objects_for_multiple_offsets(float signal[], unsigned int signal_length, queue<int> object_indexes, float threshold_factor = 1)
+    {
+        TwoDimensionalTableOfFloats means = calculate_means(signal, signal_length);
+        TwoDimensionalTableOfDoubles detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, tested_parameters_table_size);
+        for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
+        {
+            for (eCFAR_Types algorithm_type = (eCFAR_Types)0; algorithm_type < end_of_enum; algorithm_type = (eCFAR_Types)((int)algorithm_type + 1))
+            {
+                detects_and_false_detects_count.table_pointer[algorithm_type][threshold_offset_index] = 0;
+                detects_and_false_detects_count.table_pointer[algorithm_type + 3][threshold_offset_index] = 0;
+                for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
+                {
+
+                    float threshold = threshold_factor* calculate_threshold(means.table_pointer[LEFT][cell_under_test_number], means.table_pointer[RIGHT][cell_under_test_number], means.table_pointer[CENTER][cell_under_test_number], algorithm_type) + tested_parameters_table[threshold_offset_index];
+
+                    if (threshold < signal[cell_under_test_number])
+                    {
+                        if (!object_indexes.empty() && cell_under_test_number == object_indexes.front())
+                        {
+                            detects_and_false_detects_count.table_pointer[algorithm_type][threshold_offset_index] += 1;
+                            //object_indexes.pop();
+                        }
+                        else
+                        {
+                            detects_and_false_detects_count.table_pointer[3 + algorithm_type][threshold_offset_index] += 1;
                         }
                     }
                 }
@@ -351,6 +386,11 @@ public:
         }
         signal[object_index.front()] += signal_from_object;
     }
+
+    ~Signal()
+    {
+        delete[] signal;
+    }
 };
 
 
@@ -362,18 +402,25 @@ int main()
     ProbabilitiesForMultipleThresholdFactors probabilitiesCA(0, 10, 0.1);
     ProbabilitiesForMultipleThresholdFactors probabilitiesGOCA(0, 10, 0.1);
     ProbabilitiesForMultipleThresholdFactors probabilitiesSOCA(0, 10, 0.1);
-    
-    for (int i = 0; i < 10000; i++)
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+
+    for (int i = 0; i < 2000; i++)
     {
-        signal.signal_generation(1, 2048, 6);
-        TwoDimensionalTableOfDoubles cfar_output = cfar.find_objects(signal.signal, signal.length, signal.object_index);
+        signal.signal_generation(10, 2048, 6);
+        TwoDimensionalTableOfDoubles cfar_output = cfar.find_objects_for_multiple_threshold_factors(signal.signal, signal.length, signal.object_index);
         cfar_output.destructor_lock = false;
         
         probabilitiesCA.calculate_probabilities(cfar_output.table_pointer[0], cfar_output.table_pointer[3], 2048);
         probabilitiesGOCA.calculate_probabilities(cfar_output.table_pointer[1], cfar_output.table_pointer[4], 2048);
         probabilitiesSOCA.calculate_probabilities(cfar_output.table_pointer[2], cfar_output.table_pointer[5], 2048);
     }
+
     probabilitiesCA.export_to_csv("output/outputCA.csv");
     probabilitiesGOCA.export_to_csv("output/outputGOCA.csv");
     probabilitiesSOCA.export_to_csv("output/outputSOCA.csv");
+
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
+
 }
