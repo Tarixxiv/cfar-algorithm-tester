@@ -22,8 +22,8 @@
 #define SIGMA 1
 #define SNR_dB 12
 #define DATA_LENGTH 2048
-#define TESTS_PER_THREAD 10000
-#define NUMBER_OF_THREADS 1
+#define TESTS_PER_THREAD 8000
+#define NUMBER_OF_THREADS 5
 
 //using namespace std;
 
@@ -460,14 +460,21 @@ class Signal
 {
 public:
     std::queue<int> object_index;
-    int length = 0;
+    int length = 1024;
     float sigma = 1;
     float snr_dB = 12;
-    float* signal = NULL;
+    float* signal_samples = NULL;
     std::default_random_engine generator;
     Signal()
     {
         generator = std::default_random_engine((time(NULL)));
+    }
+    Signal(Signal &signal)
+    {
+        generator = std::default_random_engine((time(NULL)));
+        this->length = signal.length;
+        this->sigma = signal.sigma;
+        this->snr_dB = signal.snr_dB;
     }
     Signal(float sigma, int length, float snr_dB)
     {
@@ -478,8 +485,8 @@ public:
     }
     void signal_generation()
     {
-        delete[] signal;
-        signal = new float[length];
+        delete[] signal_samples;
+        signal_samples = new float[length];
         std::normal_distribution<float> dist(0, sigma);
         srand(time(NULL));
         float signal_from_object = pow(10, snr_dB / 20) * sigma;
@@ -489,21 +496,21 @@ public:
         float b = dist(generator);
         for (int index = 0; index < length; index++)
         {
-            signal[index] = dist(generator);
+            signal_samples[index] = dist(generator);
         }
-        signal[object_index.front()] += signal_from_object;
+        signal_samples[object_index.front()] += signal_from_object;
     }
 
     ~Signal()
     {
-        delete[] signal;
+        delete[] signal_samples;
     }
 };
 
 class SimulationThread
 {
 public:
-    CFAR cfar;
+    CFAR *cfar;
     Signal signal;
     ProbabilitiesForMultipleThresholdFactors *probabilitiesCA = NULL;
     ProbabilitiesForMultipleThresholdFactors *probabilitiesGOCA = NULL;
@@ -512,7 +519,7 @@ public:
     SimulationThread(CFAR &cfar, Signal &signal)
     {
         this->signal = Signal(signal);
-        this->cfar = CFAR(cfar);
+        this->cfar = new CFAR(cfar);
         probabilitiesCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
         probabilitiesGOCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
         probabilitiesSOCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
@@ -527,24 +534,27 @@ public:
     void start_simulation(int number_of_tests, int number_of_thread = 0)
     {
         //std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+        std::cout << "thread " << number_of_thread << " started\n";
         for (int counter = 0; counter < number_of_tests; counter++)
         {
             signal.signal_generation();
-            TwoDimensionalTableOfUInts cfar_output = cfar.find_objects_for_multiple_threshold_factors(signal.signal, signal.length, signal.object_index);
+            TwoDimensionalTableOfUInts cfar_output = cfar->find_objects_for_multiple_threshold_factors(signal.signal_samples, signal.length, signal.object_index);
             cfar_output.destructor_lock = false;
 
             probabilitiesCA->add(cfar_output.table_pointer[0], cfar_output.table_pointer[3], 2048);
             probabilitiesGOCA->add(cfar_output.table_pointer[1], cfar_output.table_pointer[4], 2048);
             probabilitiesSOCA->add(cfar_output.table_pointer[2], cfar_output.table_pointer[5], 2048);
+            if (counter % 1000 == 0)
+                std::cout << "thread " << number_of_thread << " reached " << counter << " tests\n";
         }
-
         //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
         
-        //std::cout << "thread " << number_of_thread << " finished after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
+        std::cout << "thread " << number_of_thread << " finished\n";// after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
 
     }
     ~SimulationThread()
     {
+        delete cfar;
         delete probabilitiesCA;
         delete probabilitiesGOCA;
         delete probabilitiesSOCA;
@@ -572,15 +582,22 @@ int main()
     for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
     {
         simulation[number_of_thread] = new SimulationThread(cfar, signal);
+    }
+
+    for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
+    {
+        simulation[number_of_thread] = new SimulationThread(cfar, signal);
         simulation_thread[number_of_thread] = std::thread(&SimulationThread::start_simulation, simulation[number_of_thread], TESTS_PER_THREAD, number_of_thread);
     }
     for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
     {
         simulation_thread[number_of_thread].join();
-        if (number_of_thread > 0)
-            simulation[0]->add(*(simulation[number_of_thread]));
     }
-    simulation[0][0].export_to_csv();
+    for (int number_of_thread = 1; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
+    {
+        simulation[0]->add(*(simulation[number_of_thread]));
+    }
+    simulation[0]->export_to_csv();
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
