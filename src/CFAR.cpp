@@ -4,6 +4,7 @@
 #include <queue>
 #include <fstream>
 #include <chrono>
+#include <thread>
 
 #include <random>
 
@@ -12,7 +13,19 @@
 #define CENTER 2
 #define NUMBER_OF_CFAR_TYPES 3
 
-using namespace std;
+#define CFAR_GUARD_CELLS 8
+#define CFAR_TRAINING_CELLS 32
+#define CFAR_MIN_TESTED_VALUE 0
+#define CFAR_MAX_TESTED_VALUE 30
+#define CFAR_DALTA_TESTED_VALUE 0.2
+
+#define SIGMA 1
+#define SNR_dB 12
+#define DATA_LENGTH 2048
+#define TESTS_PER_THREAD 10000
+#define NUMBER_OF_THREADS 1
+
+//using namespace std;
 
 class TableOfFloats
 {
@@ -29,6 +42,7 @@ public:
         delete[] table_pointer;
     }
 };
+
 class TwoDimensionalTableOfFloats
 {
 public:
@@ -98,10 +112,11 @@ public:
 class CFAR
 {
 private:
-    unsigned int tested_parameters_table_size = 0;
-    float* tested_parameters_table = NULL;
+    
     int number_of_guard_cells = 0;
     int number_of_training_cells = 0;
+
+protected:
     void init(unsigned int number_of_guard_cells, unsigned int number_of_training_cells, float threshold_factor_min, float threshold_factor_max, float threshold_factor_delta)
     {
         this->number_of_guard_cells = number_of_guard_cells;
@@ -115,7 +130,65 @@ private:
             tested_parameters_table[iIndex] = threshold_factor_min + threshold_factor_delta * iIndex;
         }
     }
+
+    TwoDimensionalTableOfFloats* calculate_means(float signal[], int signal_length)
+    {
+        int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells, signal_length - 1);
+        int last_right_guard_cell_number = number_of_guard_cells / 2;
+        int first_left_training_cell_number = -number_of_guard_cells / 2 - number_of_training_cells / 2;
+        int first_left_guard_cell_number = -number_of_guard_cells / 2;
+        int count_left;
+        int count_right;
+        float sum_left = 0;
+        float sum_right = 0;
+        for (int cell_number = last_right_guard_cell_number; cell_number < last_right_training_cell_number; cell_number++)
+            sum_right += signal[cell_number];
+        TwoDimensionalTableOfFloats* means = new TwoDimensionalTableOfFloats(3, signal_length);
+        for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
+        {
+            if (first_left_training_cell_number - 1 >= 0)
+                sum_left -= signal[first_left_training_cell_number - 1];
+            if (first_left_guard_cell_number > 0)
+                sum_left += signal[first_left_guard_cell_number - 1];
+            if (last_right_training_cell_number < signal_length)
+                sum_right += signal[last_right_training_cell_number];
+            if (last_right_guard_cell_number < signal_length)
+                sum_right -= signal[last_right_guard_cell_number];
+
+            count_left = std::max(0, first_left_guard_cell_number) - std::max(0, first_left_training_cell_number);
+            count_right = std::min(last_right_training_cell_number + 1, signal_length) - std::min(last_right_guard_cell_number + 1, signal_length);
+
+            if (count_left > 0)
+                means->table_pointer[LEFT][cell_under_test_number] = sum_left / count_left;
+            else
+                means->table_pointer[LEFT][cell_under_test_number] = nanf("");
+            if (count_right > 0)
+                means->table_pointer[RIGHT][cell_under_test_number] = (sum_right / count_right);
+            else
+                means->table_pointer[RIGHT][cell_under_test_number] = nanf("");
+            means->table_pointer[CENTER][cell_under_test_number] = (sum_right + sum_left) / (count_left + count_right);
+
+            last_right_training_cell_number += 1;
+            last_right_guard_cell_number += 1;
+            first_left_training_cell_number += 1;
+            first_left_guard_cell_number += 1;
+            if (first_left_training_cell_number <= 0 && 0 < first_left_guard_cell_number)
+            {
+                last_right_training_cell_number = std::min(last_right_training_cell_number - 1, signal_length - 1);
+                sum_right -= signal[last_right_training_cell_number];
+            }
+            if (last_right_training_cell_number >= signal_length && signal_length > last_right_guard_cell_number && first_left_training_cell_number - 1 >= 0)
+            {
+                first_left_training_cell_number -= 1;
+                sum_left += signal[first_left_training_cell_number - 1];
+            }
+        }
+        return means;
+    }
 public:
+    unsigned int tested_parameters_table_size = 0;
+    float* tested_parameters_table = NULL;
+
     enum eCFAR_Types
     {
         CA = 0,
@@ -130,8 +203,18 @@ public:
         //Json::Value parameters;
         //parameters_file >> parameters;
         parameters_file.close();
+    }
 
-
+    CFAR(CFAR &cfar)
+    {
+        this->number_of_guard_cells = cfar.number_of_guard_cells;
+        this->number_of_training_cells = cfar.number_of_training_cells;
+        this->tested_parameters_table_size = cfar.tested_parameters_table_size;
+        this->tested_parameters_table = new float[tested_parameters_table_size];
+        for (int index = 0; index < tested_parameters_table_size; index++)
+        {
+            this->tested_parameters_table[index] = cfar.tested_parameters_table[index];
+        }
     }
 
     CFAR(unsigned int number_of_guard_cells, unsigned int number_of_training_cells, float threshold_factor_min, float threshold_factor_max, float threshold_factor_delta)
@@ -155,15 +238,22 @@ public:
         switch (cfar_type)
         {
         case GOCA:
-            return max(average_left, average_right);
+            return std::max(average_left, average_right);
         case SOCA:
-            return min(average_left, average_right);
+            return std::min(average_left, average_right);
         default:
             return nanf("");
         }
     }
+
     TwoDimensionalTableOfFloats calculate_all_thresholds_single(float signal[], unsigned int signal_length, float threshold_factor)
     {
+        for (int cell_number = 0; cell_number < signal_length; cell_number++)
+        {
+            signal[cell_number] = signal[cell_number] * signal[cell_number];
+            //if (signal[cell_number] < 0)
+            //    signal[cell_number] = -signal[cell_number];
+        }
         TwoDimensionalTableOfFloats thresholds(NUMBER_OF_CFAR_TYPES, signal_length);
         TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
         for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
@@ -176,8 +266,14 @@ public:
         return thresholds;
     }
 
-    TwoDimensionalTableOfUInts find_objects_for_multiple_threshold_factors(float signal[], unsigned int signal_length, queue<int> object_indexes)
+    TwoDimensionalTableOfUInts find_objects_for_multiple_threshold_factors(float signal[], unsigned int signal_length, std::queue<int> object_indexes)
     {
+        for (int cell_number = 0; cell_number < signal_length; cell_number++)
+        {
+            signal[cell_number] = signal[cell_number] * signal[cell_number];
+            //if (signal[cell_number] < 0)
+            //    signal[cell_number] = -signal[cell_number];
+        }
         TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
         TwoDimensionalTableOfUInts detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, tested_parameters_table_size);
         for (int threshold_factor_index = 0; threshold_factor_index < tested_parameters_table_size; threshold_factor_index++)
@@ -221,8 +317,15 @@ public:
         detects_and_false_detects_count.destructor_lock = true;
         return detects_and_false_detects_count;
     }
-    TwoDimensionalTableOfUInts find_objects_for_multiple_offsets(float signal[], unsigned int signal_length, queue<int> object_indexes, float threshold_factor = 1)
+
+    TwoDimensionalTableOfUInts find_objects_for_multiple_offsets(float signal[], unsigned int signal_length, std::queue<int> object_indexes, float threshold_factor = 1)
     {
+        for (int cell_number = 0; cell_number < signal_length; cell_number++)
+        {
+            signal[cell_number] = signal[cell_number] * signal[cell_number];
+            //if (signal[cell_number] < 0)
+            //    signal[cell_number] = -signal[cell_number];
+        }
         TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
         TwoDimensionalTableOfUInts detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, tested_parameters_table_size);
         for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
@@ -239,7 +342,7 @@ public:
             {
                 for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
                 {
-                    float threshold = threshold_factor * calculate_threshold(means->table_pointer[LEFT][cell_under_test_number], means->table_pointer[RIGHT][cell_under_test_number], means->table_pointer[CENTER][cell_under_test_number], algorithm_type) + tested_parameters_table[threshold_offset_index];
+                    float threshold = /*threshold_factor * */calculate_threshold(means->table_pointer[LEFT][cell_under_test_number], means->table_pointer[RIGHT][cell_under_test_number], means->table_pointer[CENTER][cell_under_test_number], algorithm_type) + tested_parameters_table[threshold_offset_index];
 
                     if (threshold < signal[cell_under_test_number])
                     {
@@ -259,66 +362,8 @@ public:
             }
         }
         detects_and_false_detects_count.destructor_lock = true;
+        delete means;
         return detects_and_false_detects_count;
-    }
-    TwoDimensionalTableOfFloats* calculate_means(float signal[], int signal_length)
-    {
-        for (int cell_number = 0; cell_number < signal_length; cell_number++)
-        {
-            if (signal[cell_number] < 0)
-                signal[cell_number] = -signal[cell_number];
-        }
-        int last_right_training_cell_number = min(number_of_guard_cells / 2 + number_of_training_cells, signal_length - 1);
-        int last_right_guard_cell_number = number_of_guard_cells / 2;
-        int first_left_training_cell_number = -number_of_guard_cells / 2 - number_of_training_cells / 2;
-        int first_left_guard_cell_number = -number_of_guard_cells / 2;
-        int count_left;
-        int count_right;
-        float sum_left = 0;
-        float sum_right = 0;
-        for (int cell_number = last_right_guard_cell_number; cell_number < last_right_training_cell_number; cell_number++)
-            sum_right += signal[cell_number];
-        TwoDimensionalTableOfFloats* means = new TwoDimensionalTableOfFloats(3, signal_length);
-        for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
-        {
-            if (first_left_training_cell_number - 1 >= 0)
-                sum_left -= signal[first_left_training_cell_number - 1];
-            if (first_left_guard_cell_number > 0)
-                sum_left += signal[first_left_guard_cell_number - 1];
-            if (last_right_training_cell_number < signal_length)
-                sum_right += signal[last_right_training_cell_number];
-            if (last_right_guard_cell_number < signal_length)
-                sum_right -= signal[last_right_guard_cell_number];
-
-            count_left = max(0, first_left_guard_cell_number) - max(0, first_left_training_cell_number);
-            count_right = min(last_right_training_cell_number + 1, signal_length) - min(last_right_guard_cell_number + 1, signal_length);
-
-            if (count_left > 0)
-                means->table_pointer[LEFT][cell_under_test_number] = sum_left / count_left;
-            else
-                means->table_pointer[LEFT][cell_under_test_number] = nanf("");
-            if (count_right > 0)
-                means->table_pointer[RIGHT][cell_under_test_number] = (sum_right / count_right);
-            else
-                means->table_pointer[RIGHT][cell_under_test_number] = nanf("");
-            means->table_pointer[CENTER][cell_under_test_number] = (sum_right + sum_left) / (count_left + count_right);
-
-            last_right_training_cell_number += 1;
-            last_right_guard_cell_number += 1;
-            first_left_training_cell_number += 1;
-            first_left_guard_cell_number += 1;
-            if (first_left_training_cell_number <= 0 && 0 < first_left_guard_cell_number)
-            {
-                last_right_training_cell_number = min(last_right_training_cell_number - 1, signal_length - 1);
-                sum_right -= signal[last_right_training_cell_number];
-            }
-            if (last_right_training_cell_number >= signal_length && signal_length > last_right_guard_cell_number && first_left_training_cell_number - 1 >= 0)
-            {
-                first_left_training_cell_number -= 1;
-                sum_left += signal[first_left_training_cell_number - 1];
-            }
-        }
-        return means;
     }
 };
 
@@ -335,8 +380,15 @@ public:
     {
         number_of_detected_objects += detects_count;
         number_of_false_detects +=false_detects_count;
-        total_cells_number +=data_len;
+        total_cells_number +=data_len - number_of_objects;
         total_objects_number +=number_of_objects;
+    }
+    void add(Probabilities &probabilities)
+    {
+        number_of_detected_objects += probabilities.number_of_detected_objects;
+        number_of_false_detects += probabilities.number_of_false_detects;
+        total_cells_number += probabilities.total_cells_number;
+        total_objects_number += probabilities.total_objects_number;
     }
     void calculate_probabilities()
     {
@@ -346,25 +398,24 @@ public:
     
 };
 
-
 class ProbabilitiesForMultipleThresholdFactors
 {
-    int uiThresholdFactorTableSize;
-    float* pfThresholdFactorTable = NULL;
-    Probabilities* probabilities;
+    int uiThresholdFactorTableSize = 0;
+    float* tested_parameter_table_pointer = NULL;
+    Probabilities* probabilities = NULL;
 public:
 
-    string header = "tf, Pd, Pfa\n";
+    std::string header = "tf, Pd, Pfa\n";
 
     ProbabilitiesForMultipleThresholdFactors(float threshold_factor_min, float threshold_factor_max, float threshold_factor_delta)
     {
         uiThresholdFactorTableSize = (threshold_factor_max - threshold_factor_min) / threshold_factor_delta;
         if ((threshold_factor_max - threshold_factor_min) / threshold_factor_delta - ((float)uiThresholdFactorTableSize) >= 0.5)
             uiThresholdFactorTableSize++;
-        pfThresholdFactorTable = new float[uiThresholdFactorTableSize];
+        tested_parameter_table_pointer = new float[uiThresholdFactorTableSize];
         for (int iIndex = 0; iIndex < uiThresholdFactorTableSize; iIndex++)
         {
-            pfThresholdFactorTable[iIndex] = threshold_factor_min + threshold_factor_delta * iIndex;
+            tested_parameter_table_pointer[iIndex] = threshold_factor_min + threshold_factor_delta * iIndex; 
         }
         probabilities = new Probabilities[uiThresholdFactorTableSize];
     }
@@ -372,20 +423,20 @@ public:
     ~ProbabilitiesForMultipleThresholdFactors()
     {
         delete[] probabilities;
-        delete[] pfThresholdFactorTable;
+        delete[] tested_parameter_table_pointer;
     }
 
-    void export_to_csv(string filepath)
+    void export_to_csv(std::string filepath)
     {
         for (int index = 0; index < uiThresholdFactorTableSize; index++)
         {
             probabilities[index].calculate_probabilities();
         }
-        ofstream output(filepath);
+        std::ofstream output(filepath);
         output << header;
         for (int index = 0; index < uiThresholdFactorTableSize; index++)
         {
-            output << pfThresholdFactorTable[index] << ", " << probabilities[index].probability_of_detection << ", " << probabilities[index].probability_of_false_detection << "\n";
+            output << tested_parameter_table_pointer[index] << ", " << probabilities[index].probability_of_detection << ", " << probabilities[index].probability_of_false_detection << "\n";
         }
     }
 
@@ -396,69 +447,143 @@ public:
             probabilities[index].add(detects_count[index], false_detects_count[index], data_len, number_of_objects);
         }
     }
+    void add(ProbabilitiesForMultipleThresholdFactors &results_to_add)
+    {
+        for (int index = 0; index < uiThresholdFactorTableSize; index++)
+        {
+            probabilities[index].add(results_to_add.probabilities[index]);
+        }
+    }
 };
 
 class Signal
 {
 public:
-    queue<int> object_index;
+    std::queue<int> object_index;
     int length = 0;
+    float sigma = 1;
+    float snr_dB = 12;
     float* signal = NULL;
-    default_random_engine* generator;
+    std::default_random_engine generator;
     Signal()
     {
-        generator = new default_random_engine((time(NULL)));
+        generator = std::default_random_engine((time(NULL)));
     }
-    void signal_generation(float sigma, int length, float snr_dB)
+    Signal(float sigma, int length, float snr_dB)
+    {
+        generator = std::default_random_engine((time(NULL)));
+        this->length = length;
+        this->sigma = sigma;
+        this->snr_dB = snr_dB;
+    }
+    void signal_generation()
     {
         delete[] signal;
         signal = new float[length];
-        this->length = length;
-        normal_distribution<float> dist(0, sigma);
+        std::normal_distribution<float> dist(0, sigma);
         srand(time(NULL));
-        float signal_from_object = sqrt(pow(10, snr_dB / 10) * sigma * sigma);
+        float signal_from_object = pow(10, snr_dB / 20) * sigma;
         while (!object_index.empty())
             object_index.pop();
         object_index.push(rand() % length);
+        float b = dist(generator);
         for (int index = 0; index < length; index++)
         {
-            signal[index] = dist(*generator);
+            signal[index] = dist(generator);
         }
         signal[object_index.front()] += signal_from_object;
     }
 
     ~Signal()
     {
-        delete generator;
         delete[] signal;
+    }
+};
+
+class SimulationThread
+{
+public:
+    CFAR cfar;
+    Signal signal;
+    ProbabilitiesForMultipleThresholdFactors *probabilitiesCA = NULL;
+    ProbabilitiesForMultipleThresholdFactors *probabilitiesGOCA = NULL;
+    ProbabilitiesForMultipleThresholdFactors *probabilitiesSOCA = NULL;
+
+    SimulationThread(CFAR &cfar, Signal &signal)
+    {
+        this->signal = Signal(signal);
+        this->cfar = CFAR(cfar);
+        probabilitiesCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
+        probabilitiesGOCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
+        probabilitiesSOCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
+    }
+    void export_to_csv()
+    {
+        probabilitiesCA->export_to_csv("output/outputCA.csv");
+        probabilitiesGOCA->export_to_csv("output/outputGOCA.csv");
+        probabilitiesSOCA->export_to_csv("output/outputSOCA.csv");
+    }
+
+    void start_simulation(int number_of_tests, int number_of_thread = 0)
+    {
+        //std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+        for (int counter = 0; counter < number_of_tests; counter++)
+        {
+            signal.signal_generation();
+            TwoDimensionalTableOfUInts cfar_output = cfar.find_objects_for_multiple_threshold_factors(signal.signal, signal.length, signal.object_index);
+            cfar_output.destructor_lock = false;
+
+            probabilitiesCA->add(cfar_output.table_pointer[0], cfar_output.table_pointer[3], 2048);
+            probabilitiesGOCA->add(cfar_output.table_pointer[1], cfar_output.table_pointer[4], 2048);
+            probabilitiesSOCA->add(cfar_output.table_pointer[2], cfar_output.table_pointer[5], 2048);
+        }
+
+        //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        
+        //std::cout << "thread " << number_of_thread << " finished after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
+
+    }
+    ~SimulationThread()
+    {
+        delete probabilitiesCA;
+        delete probabilitiesGOCA;
+        delete probabilitiesSOCA;
+    }
+    void add(SimulationThread& finished_simulation)
+    {
+        probabilitiesCA->add(*(finished_simulation.probabilitiesCA));
+        probabilitiesGOCA->add(*(finished_simulation.probabilitiesGOCA));
+        probabilitiesSOCA->add(*(finished_simulation.probabilitiesSOCA));
     }
 };
 
 int main()
 {
-    CFAR cfar(2, 20, 0, 10, 0.1);
-    Signal signal;
-    ProbabilitiesForMultipleThresholdFactors probabilitiesCA(0, 10, 0.1);
-    ProbabilitiesForMultipleThresholdFactors probabilitiesGOCA(0, 10, 0.1);
-    ProbabilitiesForMultipleThresholdFactors probabilitiesSOCA(0, 10, 0.1);
+    CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS, CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
+    Signal signal(SIGMA, DATA_LENGTH, SNR_dB);
+    SimulationThread *simulation[NUMBER_OF_THREADS];// = SimulationThread(cfar, signal);
+    //std::thread simulation_thread(&SimulationThread::start_simulation, &simulation, 100000, 0);
+    //simulation_thread.join();
+    
+    std::thread simulation_thread[NUMBER_OF_THREADS];
+    
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    for (int i = 0; i < 100000; i++)
+    for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
     {
-        signal.signal_generation(10, 2048, 3);
-        TwoDimensionalTableOfUInts cfar_output = cfar.find_objects_for_multiple_threshold_factors(signal.signal, signal.length, signal.object_index);
-        cfar_output.destructor_lock = false;
-
-        probabilitiesCA.add(cfar_output.table_pointer[0], cfar_output.table_pointer[3], 2048);
-        probabilitiesGOCA.add(cfar_output.table_pointer[1], cfar_output.table_pointer[4], 2048);
-        probabilitiesSOCA.add(cfar_output.table_pointer[2], cfar_output.table_pointer[5], 2048);
+        simulation[number_of_thread] = new SimulationThread(cfar, signal);
+        simulation_thread[number_of_thread] = std::thread(&SimulationThread::start_simulation, simulation[number_of_thread], TESTS_PER_THREAD, number_of_thread);
     }
-
-    probabilitiesCA.export_to_csv("output/outputCA.csv");
-    probabilitiesGOCA.export_to_csv("output/outputGOCA.csv");
-    probabilitiesSOCA.export_to_csv("output/outputSOCA.csv");
+    for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
+    {
+        simulation_thread[number_of_thread].join();
+        if (number_of_thread > 0)
+            simulation[0]->add(*(simulation[number_of_thread]));
+    }
+    simulation[0][0].export_to_csv();
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
-    cin.get();
+
+    std::cout << "Simulation finished after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
+    std::cin.get();
 }
