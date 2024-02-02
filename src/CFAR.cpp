@@ -14,7 +14,7 @@
 #define NUMBER_OF_CFAR_TYPES 3
 
 #define CFAR_GUARD_CELLS 8
-#define CFAR_TRAINING_CELLS 32
+#define CFAR_TRAINING_CELLS 36
 #define CFAR_MIN_TESTED_VALUE 0
 #define CFAR_MAX_TESTED_VALUE 30
 #define CFAR_DALTA_TESTED_VALUE 0.2
@@ -185,6 +185,57 @@ protected:
         }
         return means;
     }
+    TwoDimensionalTableOfFloats* calculate_means_with_zeros_on_both_sides(float signal[], int signal_length)
+    {
+        int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells / 2, signal_length - 1);
+        int last_right_guard_cell_number = number_of_guard_cells / 2;
+        int first_left_training_cell_number = -number_of_guard_cells / 2 - number_of_training_cells / 2;
+        int first_left_guard_cell_number = -number_of_guard_cells / 2;
+        int count_left;
+        int count_right;
+        float sum_left = 0;
+        float sum_right = 0;
+        count_left = number_of_training_cells / 2;
+        count_right = number_of_training_cells / 2;
+        for (int cell_number = last_right_guard_cell_number; cell_number < last_right_training_cell_number; cell_number++)
+            sum_right += signal[cell_number];
+        TwoDimensionalTableOfFloats* means = new TwoDimensionalTableOfFloats(3, signal_length);
+        for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
+        {
+            if (first_left_training_cell_number - 1 >= 0)
+                sum_left -= signal[first_left_training_cell_number - 1];
+            if (first_left_guard_cell_number > 0)
+                sum_left += signal[first_left_guard_cell_number - 1];
+            if (last_right_training_cell_number < signal_length)
+                sum_right += signal[last_right_training_cell_number];
+            if (last_right_guard_cell_number < signal_length)
+                sum_right -= signal[last_right_guard_cell_number];
+
+            if (count_left > 0)
+                means->table_pointer[LEFT][cell_under_test_number] = sum_left / count_left;
+            else
+                means->table_pointer[LEFT][cell_under_test_number] = nanf("");
+            if (count_right > 0)
+                means->table_pointer[RIGHT][cell_under_test_number] = (sum_right / count_right);
+            else
+                means->table_pointer[RIGHT][cell_under_test_number] = nanf("");
+            means->table_pointer[CENTER][cell_under_test_number] = (sum_right + sum_left) / (count_left + count_right);
+
+            last_right_training_cell_number += 1;
+            last_right_guard_cell_number += 1;
+            first_left_training_cell_number += 1;
+            first_left_guard_cell_number += 1;
+            if (first_left_training_cell_number <= 0 && 0 < first_left_guard_cell_number)
+            {
+                last_right_training_cell_number = std::min(last_right_training_cell_number - 1, signal_length - 1);
+            }
+            if (last_right_training_cell_number >= signal_length && signal_length > last_right_guard_cell_number && first_left_training_cell_number - 1 >= 0)
+            {
+                first_left_training_cell_number -= 1;
+            }
+        }
+        return means;
+    }
 public:
     unsigned int tested_parameters_table_size = 0;
     float* tested_parameters_table = NULL;
@@ -251,8 +302,6 @@ public:
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
             signal[cell_number] = signal[cell_number] * signal[cell_number];
-            //if (signal[cell_number] < 0)
-            //    signal[cell_number] = -signal[cell_number];
         }
         TwoDimensionalTableOfFloats thresholds(NUMBER_OF_CFAR_TYPES, signal_length);
         TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
@@ -271,8 +320,6 @@ public:
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
             signal[cell_number] = signal[cell_number] * signal[cell_number];
-            //if (signal[cell_number] < 0)
-            //    signal[cell_number] = -signal[cell_number];
         }
         TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
         TwoDimensionalTableOfUInts detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, tested_parameters_table_size);
@@ -323,8 +370,6 @@ public:
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
             signal[cell_number] = signal[cell_number] * signal[cell_number];
-            //if (signal[cell_number] < 0)
-            //    signal[cell_number] = -signal[cell_number];
         }
         TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
         TwoDimensionalTableOfUInts detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, tested_parameters_table_size);
@@ -538,7 +583,7 @@ public:
         for (int counter = 0; counter < number_of_tests; counter++)
         {
             signal.signal_generation();
-            TwoDimensionalTableOfUInts cfar_output = cfar->find_objects_for_multiple_threshold_factors(signal.signal_samples, signal.length, signal.object_index);
+            TwoDimensionalTableOfUInts cfar_output = cfar->find_objects_for_multiple_offsets(signal.signal_samples, signal.length, signal.object_index);
             cfar_output.destructor_lock = false;
 
             probabilitiesCA->add(cfar_output.table_pointer[0], cfar_output.table_pointer[3], 2048);
