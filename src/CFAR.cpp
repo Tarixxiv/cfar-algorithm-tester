@@ -5,110 +5,44 @@
 #include <fstream>
 #include <chrono>
 #include <thread>
-
+#include <vector>
 #include <random>
 
 #define LEFT 0
 #define RIGHT 1
 #define CENTER 2
-#define NUMBER_OF_CFAR_TYPES 3
 
 #define CFAR_GUARD_CELLS 8
 #define CFAR_TRAINING_CELLS 36
 #define CFAR_MIN_TESTED_VALUE 0
 #define CFAR_MAX_TESTED_VALUE 30
-#define CFAR_DALTA_TESTED_VALUE 0.2
+#define CFAR_DALTA_TESTED_VALUE 0.2f
 
 #define SIGMA 1
 #define SNR_dB 12
 #define DATA_LENGTH 2048
-#define TESTS_PER_THREAD 8000
+#define TESTS_PER_THREAD 1000
 #define NUMBER_OF_THREADS 5
 
 //using namespace std;
-
-class TableOfFloats
+struct CFAROutput
 {
-public:
-    float* table_pointer;
-    unsigned int length;
-    TableOfFloats(unsigned int length)
+    std::vector<int> detectsCA;
+    std::vector<int> detectsGOCA;
+    std::vector<int> detectsSOCA;
+    std::vector<int> false_detectsCA;
+    std::vector<int> false_detectsGOCA;
+    std::vector<int> false_detectsSOCA;
+    CFAROutput(std::vector<std::vector<int>> results)
     {
-        this->length = length;
-        this->table_pointer = new float[length];
-    }
-    ~TableOfFloats()
-    {
-        delete[] table_pointer;
+        detectsCA = results[0];
+        detectsGOCA = results[1];
+        detectsSOCA = results[2];
+        false_detectsCA = results[3];
+        false_detectsGOCA = results[4];
+        false_detectsSOCA = results[5];
     }
 };
-
-class TwoDimensionalTableOfFloats
-{
-public:
-    float** table_pointer = NULL;
-    unsigned int number_of_columns = 0, number_of_rows = 0;
-    bool destructor_lock = 0;
-    TwoDimensionalTableOfFloats(unsigned int number_of_rows, unsigned int number_of_columns)
-    {
-        this->number_of_columns = number_of_columns;
-        this->number_of_rows = number_of_rows;
-        this->table_pointer = new float* [number_of_rows];
-        for (int row_number = 0; row_number < number_of_rows; row_number++)
-        {
-            table_pointer[row_number] = new float[number_of_columns];
-        }
-    }
-    ~TwoDimensionalTableOfFloats()
-    {
-        if (destructor_lock)
-        {
-            destructor_lock = false;
-            return;
-        }
-        for (unsigned int row_number = 0; row_number < number_of_rows; row_number++)
-        {
-            delete[] table_pointer[row_number];
-        }
-        delete[] table_pointer;
-    }
-};
-
-class TwoDimensionalTableOfUInts
-{
-public:
-    unsigned int** table_pointer = NULL;
-    unsigned int number_of_columns = 0, number_of_rows = 0;
-    bool destructor_lock = 0;
-    TwoDimensionalTableOfUInts()
-    {
-
-    }
-    TwoDimensionalTableOfUInts(unsigned int number_of_rows, unsigned int number_of_columns)
-    {
-        this->number_of_columns = number_of_columns;
-        this->number_of_rows = number_of_rows;
-        this->table_pointer = new unsigned int* [number_of_rows];
-        for (int row_number = 0; row_number < number_of_rows; row_number++)
-        {
-            table_pointer[row_number] = new unsigned int[number_of_columns];
-        }
-    }
-    ~TwoDimensionalTableOfUInts()
-    {
-        if (destructor_lock)
-        {
-            destructor_lock = false;
-            return;
-        }
-        for (unsigned int row_number = 0; row_number < number_of_rows; row_number++)
-        {
-            delete[] table_pointer[row_number];
-        }
-        delete[] table_pointer;
-    }
-};
-
 class CFAR
 {
 private:
@@ -122,16 +56,16 @@ protected:
         this->number_of_guard_cells = number_of_guard_cells;
         this->number_of_training_cells = number_of_training_cells;
         tested_parameters_table_size = (threshold_factor_max - threshold_factor_min) / threshold_factor_delta;
-        if ((threshold_factor_max - threshold_factor_min) / threshold_factor_delta - ((float)tested_parameters_table_size) >= 0.5)
+        if ((threshold_factor_max - threshold_factor_min) / threshold_factor_delta - ((float)tested_parameters_table_size) >= 0.5f)
             tested_parameters_table_size++;
-        tested_parameters_table = new float[tested_parameters_table_size];
+        tested_parameters_table = std::vector<float>(tested_parameters_table_size);
         for (int iIndex = 0; iIndex < tested_parameters_table_size; iIndex++)
         {
             tested_parameters_table[iIndex] = threshold_factor_min + threshold_factor_delta * iIndex;
         }
     }
 
-    TwoDimensionalTableOfFloats* calculate_means(float signal[], int signal_length)
+    std::vector<std::vector<float>> calculate_means(float signal[], int signal_length)
     {
         int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells, signal_length - 1);
         int last_right_guard_cell_number = number_of_guard_cells / 2;
@@ -143,7 +77,11 @@ protected:
         float sum_right = 0;
         for (int cell_number = last_right_guard_cell_number; cell_number < last_right_training_cell_number; cell_number++)
             sum_right += signal[cell_number];
-        TwoDimensionalTableOfFloats* means = new TwoDimensionalTableOfFloats(3, signal_length);
+        std::vector<std::vector<float>> means(3);
+        for (int i = 0; i < means.size(); i++)
+        {
+            means[i] = std::vector<float>(signal_length);
+        }
         for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
         {
             if (first_left_training_cell_number - 1 >= 0)
@@ -159,14 +97,14 @@ protected:
             count_right = std::min(last_right_training_cell_number + 1, signal_length) - std::min(last_right_guard_cell_number + 1, signal_length);
 
             if (count_left > 0)
-                means->table_pointer[LEFT][cell_under_test_number] = sum_left / count_left;
+                means[LEFT][cell_under_test_number] = sum_left / count_left;
             else
-                means->table_pointer[LEFT][cell_under_test_number] = nanf("");
+                means[LEFT][cell_under_test_number] = nanf("");
             if (count_right > 0)
-                means->table_pointer[RIGHT][cell_under_test_number] = (sum_right / count_right);
+                means[RIGHT][cell_under_test_number] = (sum_right / count_right);
             else
-                means->table_pointer[RIGHT][cell_under_test_number] = nanf("");
-            means->table_pointer[CENTER][cell_under_test_number] = (sum_right + sum_left) / (count_left + count_right);
+                means[RIGHT][cell_under_test_number] = nanf("");
+            means[CENTER][cell_under_test_number] = (sum_right + sum_left) / (count_left + count_right);
 
             last_right_training_cell_number += 1;
             last_right_guard_cell_number += 1;
@@ -185,7 +123,7 @@ protected:
         }
         return means;
     }
-    TwoDimensionalTableOfFloats* calculate_means_with_zeros_on_both_sides(float signal[], int signal_length)
+    std::vector<std::vector<float>> calculate_means_with_zeros_on_both_sides(float signal[], int signal_length)
     {
         int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells / 2, signal_length - 1);
         int last_right_guard_cell_number = number_of_guard_cells / 2;
@@ -199,7 +137,11 @@ protected:
         count_right = number_of_training_cells / 2;
         for (int cell_number = last_right_guard_cell_number; cell_number < last_right_training_cell_number; cell_number++)
             sum_right += signal[cell_number];
-        TwoDimensionalTableOfFloats* means = new TwoDimensionalTableOfFloats(3, signal_length);
+        std::vector<std::vector<float>> means(3);
+        for (int i = 0; i < means.size(); i++)
+        {
+            means[i] = std::vector<float>(signal_length);
+        }
         for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
         {
             if (first_left_training_cell_number - 1 >= 0)
@@ -212,14 +154,14 @@ protected:
                 sum_right -= signal[last_right_guard_cell_number];
 
             if (count_left > 0)
-                means->table_pointer[LEFT][cell_under_test_number] = sum_left / count_left;
+                means[LEFT][cell_under_test_number] = sum_left / count_left;
             else
-                means->table_pointer[LEFT][cell_under_test_number] = nanf("");
+                means[LEFT][cell_under_test_number] = nanf("");
             if (count_right > 0)
-                means->table_pointer[RIGHT][cell_under_test_number] = (sum_right / count_right);
+                means[RIGHT][cell_under_test_number] = (sum_right / count_right);
             else
-                means->table_pointer[RIGHT][cell_under_test_number] = nanf("");
-            means->table_pointer[CENTER][cell_under_test_number] = (sum_right + sum_left) / (count_left + count_right);
+                means[RIGHT][cell_under_test_number] = nanf("");
+            means[CENTER][cell_under_test_number] = (sum_right + sum_left) / (count_left + count_right);
 
             last_right_training_cell_number += 1;
             last_right_guard_cell_number += 1;
@@ -237,10 +179,7 @@ protected:
         return means;
     }
 public:
-    unsigned int tested_parameters_table_size = 0;
-    float* tested_parameters_table = NULL;
-
-    enum eCFAR_Types
+    enum class CFAR_Types
     {
         CA = 0,
         GOCA = 1,
@@ -248,12 +187,20 @@ public:
         end_of_enum = 3
     };
 
+    enum class TestedValues
+    {
+        none = -1,
+        threshold_factor = 0,
+        threshold_offset = 1,
+    };
+
+    unsigned int tested_parameters_table_size = 0;
+    std::vector<float> tested_parameters_table;
+    TestedValues tested_parameter = TestedValues::none;
+
     CFAR()
     {
-        std::ifstream parameters_file("config/CFAR_parameters.json", std::ifstream::binary);
-        //Json::Value parameters;
-        //parameters_file >> parameters;
-        parameters_file.close();
+        init(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS, CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
     }
 
     CFAR(CFAR &cfar)
@@ -261,7 +208,7 @@ public:
         this->number_of_guard_cells = cfar.number_of_guard_cells;
         this->number_of_training_cells = cfar.number_of_training_cells;
         this->tested_parameters_table_size = cfar.tested_parameters_table_size;
-        this->tested_parameters_table = new float[tested_parameters_table_size];
+        this->tested_parameters_table = std::vector<float>(tested_parameters_table_size);
         for (int index = 0; index < tested_parameters_table_size; index++)
         {
             this->tested_parameters_table[index] = cfar.tested_parameters_table[index];
@@ -275,12 +222,12 @@ public:
 
     ~CFAR()
     {
-        delete[] tested_parameters_table;
-    }
+        
+    } 
 
-    float calculate_threshold(float average_left, float average_right, float average_center, eCFAR_Types cfar_type)
+    float calculate_threshold(float average_left, float average_right, float average_center, CFAR_Types cfar_type)
     {
-        if (cfar_type == CA)
+        if (cfar_type == CFAR_Types::CA)
             return (average_center);
         if (isnan(average_left))
             return average_right;
@@ -288,67 +235,86 @@ public:
             return average_left;
         switch (cfar_type)
         {
-        case GOCA:
+        case CFAR_Types::GOCA:
             return std::max(average_left, average_right);
-        case SOCA:
+        case CFAR_Types::SOCA:
             return std::min(average_left, average_right);
         default:
             return nanf("");
         }
     }
 
-    TwoDimensionalTableOfFloats calculate_all_thresholds_single(float signal[], unsigned int signal_length, float threshold_factor)
+    std::vector<std::vector<float>> calculate_all_thresholds_single(float signal[], unsigned int signal_length, float threshold_factor)
     {
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
             signal[cell_number] = signal[cell_number] * signal[cell_number];
         }
-        TwoDimensionalTableOfFloats thresholds(NUMBER_OF_CFAR_TYPES, signal_length);
-        TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
+        std::vector<std::vector<float>> thresholds((int)CFAR_Types::end_of_enum);
+        for (int i = 0; i < thresholds.size(); i++)
+        {
+            thresholds[i] = std::vector<float>(signal_length);
+        }
+        std::vector<std::vector<float>> means = calculate_means(signal, signal_length);
         for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
-            for (eCFAR_Types algorithm_type = (eCFAR_Types)0; algorithm_type < end_of_enum; algorithm_type = (eCFAR_Types)((int)algorithm_type + 1))
+            for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
             {
-                thresholds.table_pointer[algorithm_type][cell_under_test_number] = calculate_threshold(means->table_pointer[LEFT][cell_under_test_number], means->table_pointer[RIGHT][cell_under_test_number], means->table_pointer[CENTER][cell_under_test_number], algorithm_type) * threshold_factor;
+                thresholds[(int)algorithm_type][cell_under_test_number] = calculate_threshold(means[LEFT][cell_under_test_number], means[RIGHT][cell_under_test_number], means[CENTER][cell_under_test_number], algorithm_type) * threshold_factor;
             }
-        thresholds.destructor_lock = true;
-        delete means;
         return thresholds;
     }
 
-    TwoDimensionalTableOfUInts find_objects_for_multiple_threshold_factors(float signal[], unsigned int signal_length, std::queue<int> object_indexes)
+    CFAROutput find_objects(float signal[], unsigned int signal_length, std::queue<int> object_indexes, float threshold_factor = 1)
     {
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
             signal[cell_number] = signal[cell_number] * signal[cell_number];
         }
-        TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
-        TwoDimensionalTableOfUInts detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, tested_parameters_table_size);
-        for (int threshold_factor_index = 0; threshold_factor_index < tested_parameters_table_size; threshold_factor_index++)
+        std::vector<std::vector<float>> means = calculate_means(signal, signal_length);
+        std::vector< std::vector<int> > detects_and_false_detects_count(2 * (int)CFAR_Types::end_of_enum);
+        for (int i = 0; i < detects_and_false_detects_count.size(); i++)
         {
-            for (eCFAR_Types algorithm_type = (eCFAR_Types)0; algorithm_type < end_of_enum; algorithm_type = (eCFAR_Types)((int)algorithm_type + 1))
+            detects_and_false_detects_count[i] = std::vector<int>(tested_parameters_table_size);
+        }
+        for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
+        {
+            for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
             {
-                detects_and_false_detects_count.table_pointer[algorithm_type][threshold_factor_index] = 0;
-                detects_and_false_detects_count.table_pointer[algorithm_type + 3][threshold_factor_index] = 0;
+                detects_and_false_detects_count[(int)algorithm_type][threshold_offset_index] = 0;
+                detects_and_false_detects_count[(int)algorithm_type + 3][threshold_offset_index] = 0;
             }
         }
         for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
         {
-        
-            for (eCFAR_Types algorithm_type = (eCFAR_Types)0; algorithm_type < end_of_enum; algorithm_type = (eCFAR_Types)((int)algorithm_type + 1))
+            for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
             {
-                for (int threshold_factor_index = 0; threshold_factor_index < tested_parameters_table_size; threshold_factor_index++)
+                float threshold_base = calculate_threshold(means[LEFT][cell_under_test_number], means[RIGHT][cell_under_test_number], means[CENTER][cell_under_test_number], algorithm_type);
+                for (int tested_values_index = 0; tested_values_index < tested_parameters_table_size; tested_values_index++)
                 {
-                    float threshold = (calculate_threshold(means->table_pointer[LEFT][cell_under_test_number], means->table_pointer[RIGHT][cell_under_test_number], means->table_pointer[CENTER][cell_under_test_number], algorithm_type) * tested_parameters_table[threshold_factor_index]);
+                    float threshold;
+                    switch (tested_parameter)
+                    {
+                    case TestedValues::threshold_factor:
+                        threshold = threshold_base * tested_parameters_table[tested_values_index];
+                        break;
+                    case TestedValues::threshold_offset:
+                        threshold = threshold_factor * threshold_base + tested_parameters_table[tested_values_index];
+                        break;
+                    default:
+                        threshold = threshold_base;
+                        break;
+                    }
+                      
 
                     if (threshold < signal[cell_under_test_number])
                     {
                         if (!object_indexes.empty() && cell_under_test_number == object_indexes.front())
                         {
-                            detects_and_false_detects_count.table_pointer[algorithm_type][threshold_factor_index] += 1;
+                            detects_and_false_detects_count[(int)algorithm_type][tested_values_index] += 1;
                         }
                         else
                         {
-                            detects_and_false_detects_count.table_pointer[3 + algorithm_type][threshold_factor_index] += 1;
+                            detects_and_false_detects_count[3 + (int)algorithm_type][tested_values_index] += 1;
                         }
                     }
                     else
@@ -360,55 +326,8 @@ public:
                 object_indexes.pop();
             }
         }
-        delete means;
-        detects_and_false_detects_count.destructor_lock = true;
-        return detects_and_false_detects_count;
-    }
-
-    TwoDimensionalTableOfUInts find_objects_for_multiple_offsets(float signal[], unsigned int signal_length, std::queue<int> object_indexes, float threshold_factor = 1)
-    {
-        for (int cell_number = 0; cell_number < signal_length; cell_number++)
-        {
-            signal[cell_number] = signal[cell_number] * signal[cell_number];
-        }
-        TwoDimensionalTableOfFloats* means = calculate_means(signal, signal_length);
-        TwoDimensionalTableOfUInts detects_and_false_detects_count(2 * NUMBER_OF_CFAR_TYPES, tested_parameters_table_size);
-        for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
-        {
-            for (eCFAR_Types algorithm_type = (eCFAR_Types)0; algorithm_type < end_of_enum; algorithm_type = (eCFAR_Types)((int)algorithm_type + 1))
-            {
-                detects_and_false_detects_count.table_pointer[algorithm_type][threshold_offset_index] = 0;
-                detects_and_false_detects_count.table_pointer[algorithm_type + 3][threshold_offset_index] = 0;
-            }
-        }
-        for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
-        {
-            for (eCFAR_Types algorithm_type = (eCFAR_Types)0; algorithm_type < end_of_enum; algorithm_type = (eCFAR_Types)((int)algorithm_type + 1))
-            {
-                for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
-                {
-                    float threshold = /*threshold_factor * */calculate_threshold(means->table_pointer[LEFT][cell_under_test_number], means->table_pointer[RIGHT][cell_under_test_number], means->table_pointer[CENTER][cell_under_test_number], algorithm_type) + tested_parameters_table[threshold_offset_index];
-
-                    if (threshold < signal[cell_under_test_number])
-                    {
-                        if (!object_indexes.empty() && cell_under_test_number == object_indexes.front())
-                        {
-                            detects_and_false_detects_count.table_pointer[algorithm_type][threshold_offset_index] += 1;
-                            //object_indexes.pop();
-                        }
-                        else
-                        {
-                            detects_and_false_detects_count.table_pointer[3 + algorithm_type][threshold_offset_index] += 1;
-                        }
-                    }
-                    else
-                        break;
-                }
-            }
-        }
-        detects_and_false_detects_count.destructor_lock = true;
-        delete means;
-        return detects_and_false_detects_count;
+        CFAROutput output(detects_and_false_detects_count);
+        return output;
     }
 };
 
@@ -445,56 +364,63 @@ public:
 
 class ProbabilitiesForMultipleThresholdFactors
 {
-    int uiThresholdFactorTableSize = 0;
-    float* tested_parameter_table_pointer = NULL;
-    Probabilities* probabilities = NULL;
+    int tested_value_table_size = 0;
+    std::vector<float> tested_parameter_table_pointer;
+    std::vector<Probabilities> probabilities;
+    void init(float threshold_factor_min, float threshold_factor_max, float threshold_factor_delta)
+    {
+        tested_value_table_size = (threshold_factor_max - threshold_factor_min) / threshold_factor_delta;
+        if ((threshold_factor_max - threshold_factor_min) / threshold_factor_delta - ((float)tested_value_table_size) >= 0.5f)
+            tested_value_table_size++;
+        tested_parameter_table_pointer = std::vector<float>(tested_value_table_size);
+        for (int iIndex = 0; iIndex < tested_value_table_size; iIndex++)
+        {
+            tested_parameter_table_pointer[iIndex] = threshold_factor_min + threshold_factor_delta * iIndex;
+        }
+        probabilities = std::vector<Probabilities>(tested_value_table_size);
+    }
 public:
 
     std::string header = "tf, Pd, Pfa\n";
 
     ProbabilitiesForMultipleThresholdFactors(float threshold_factor_min, float threshold_factor_max, float threshold_factor_delta)
     {
-        uiThresholdFactorTableSize = (threshold_factor_max - threshold_factor_min) / threshold_factor_delta;
-        if ((threshold_factor_max - threshold_factor_min) / threshold_factor_delta - ((float)uiThresholdFactorTableSize) >= 0.5)
-            uiThresholdFactorTableSize++;
-        tested_parameter_table_pointer = new float[uiThresholdFactorTableSize];
-        for (int iIndex = 0; iIndex < uiThresholdFactorTableSize; iIndex++)
-        {
-            tested_parameter_table_pointer[iIndex] = threshold_factor_min + threshold_factor_delta * iIndex; 
-        }
-        probabilities = new Probabilities[uiThresholdFactorTableSize];
+        init(threshold_factor_min, threshold_factor_max, threshold_factor_delta);
+    }
+
+    ProbabilitiesForMultipleThresholdFactors()
+    {
+        init(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
     }
 
     ~ProbabilitiesForMultipleThresholdFactors()
     {
-        delete[] probabilities;
-        delete[] tested_parameter_table_pointer;
     }
 
     void export_to_csv(std::string filepath)
     {
-        for (int index = 0; index < uiThresholdFactorTableSize; index++)
+        for (int index = 0; index < tested_value_table_size; index++)
         {
             probabilities[index].calculate_probabilities();
         }
         std::ofstream output(filepath);
         output << header;
-        for (int index = 0; index < uiThresholdFactorTableSize; index++)
+        for (int index = 0; index < tested_value_table_size; index++)
         {
             output << tested_parameter_table_pointer[index] << ", " << probabilities[index].probability_of_detection << ", " << probabilities[index].probability_of_false_detection << "\n";
         }
     }
 
-    void add(unsigned int detects_count[], unsigned int false_detects_count[], unsigned int data_len, unsigned int number_of_objects = 1)
+    void add(std::vector<int> detects_count, std::vector<int> false_detects_count, unsigned int data_len, unsigned int number_of_objects = 1)
     {
-        for (int index = 0; index < uiThresholdFactorTableSize; index++)
+        for (int index = 0; index < tested_value_table_size; index++)
         {
-            probabilities[index].add(detects_count[index], false_detects_count[index], data_len, number_of_objects);
+            probabilities[index].add((unsigned int)detects_count[index], (unsigned int)false_detects_count[index], data_len, number_of_objects);
         }
     }
     void add(ProbabilitiesForMultipleThresholdFactors &results_to_add)
     {
-        for (int index = 0; index < uiThresholdFactorTableSize; index++)
+        for (int index = 0; index < tested_value_table_size; index++)
         {
             probabilities[index].add(results_to_add.probabilities[index]);
         }
@@ -512,7 +438,6 @@ public:
     std::default_random_engine generator;
     Signal()
     {
-        generator = std::default_random_engine((time(NULL)));
     }
     Signal(Signal &signal)
     {
@@ -555,27 +480,28 @@ public:
 class SimulationThread
 {
 public:
-    CFAR *cfar;
+    CFAR cfar;
     Signal signal;
-    ProbabilitiesForMultipleThresholdFactors *probabilitiesCA = NULL;
-    ProbabilitiesForMultipleThresholdFactors *probabilitiesGOCA = NULL;
-    ProbabilitiesForMultipleThresholdFactors *probabilitiesSOCA = NULL;
+    ProbabilitiesForMultipleThresholdFactors probabilitiesCA;
+    ProbabilitiesForMultipleThresholdFactors probabilitiesGOCA;
+    ProbabilitiesForMultipleThresholdFactors probabilitiesSOCA;
 
     SimulationThread(CFAR &cfar, Signal &signal)
     {
         this->signal = Signal(signal);
-        this->cfar = new CFAR(cfar);
-        probabilitiesCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
-        probabilitiesGOCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
-        probabilitiesSOCA = new ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
-    }
-    void export_to_csv()
-    {
-        probabilitiesCA->export_to_csv("output/outputCA.csv");
-        probabilitiesGOCA->export_to_csv("output/outputGOCA.csv");
-        probabilitiesSOCA->export_to_csv("output/outputSOCA.csv");
+        this->cfar = CFAR(cfar);
+        probabilitiesCA = ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
+        probabilitiesGOCA = ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
+        probabilitiesSOCA = ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
     }
 
+    void export_to_csv()
+    {
+        probabilitiesCA.export_to_csv("output/outputCA.csv");
+        probabilitiesGOCA.export_to_csv("output/outputGOCA.csv");
+        probabilitiesSOCA.export_to_csv("output/outputSOCA.csv");
+    }
+    
     void start_simulation(int number_of_tests, int number_of_thread = 0)
     {
         //std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -583,12 +509,12 @@ public:
         for (int counter = 0; counter < number_of_tests; counter++)
         {
             signal.signal_generation();
-            TwoDimensionalTableOfUInts cfar_output = cfar->find_objects_for_multiple_offsets(signal.signal_samples, signal.length, signal.object_index);
-            cfar_output.destructor_lock = false;
+            cfar.tested_parameter = CFAR::TestedValues::threshold_factor;
+            CFAROutput cfar_output = cfar.find_objects(signal.signal_samples, signal.length, signal.object_index);
 
-            probabilitiesCA->add(cfar_output.table_pointer[0], cfar_output.table_pointer[3], 2048);
-            probabilitiesGOCA->add(cfar_output.table_pointer[1], cfar_output.table_pointer[4], 2048);
-            probabilitiesSOCA->add(cfar_output.table_pointer[2], cfar_output.table_pointer[5], 2048);
+            probabilitiesCA.add(cfar_output.detectsCA, cfar_output.false_detectsCA, signal.length);
+            probabilitiesGOCA.add(cfar_output.detectsGOCA, cfar_output.false_detectsGOCA, signal.length);
+            probabilitiesSOCA.add(cfar_output.detectsSOCA, cfar_output.false_detectsSOCA, signal.length);
             if (counter % 1000 == 0)
                 std::cout << "thread " << number_of_thread << " reached " << counter << " tests\n";
         }
@@ -599,16 +525,13 @@ public:
     }
     ~SimulationThread()
     {
-        delete cfar;
-        delete probabilitiesCA;
-        delete probabilitiesGOCA;
-        delete probabilitiesSOCA;
+
     }
     void add(SimulationThread& finished_simulation)
     {
-        probabilitiesCA->add(*(finished_simulation.probabilitiesCA));
-        probabilitiesGOCA->add(*(finished_simulation.probabilitiesGOCA));
-        probabilitiesSOCA->add(*(finished_simulation.probabilitiesSOCA));
+        probabilitiesCA.add(finished_simulation.probabilitiesCA);
+        probabilitiesGOCA.add(finished_simulation.probabilitiesGOCA);
+        probabilitiesSOCA.add(finished_simulation.probabilitiesSOCA);
     }
 };
 
@@ -616,18 +539,11 @@ int main()
 {
     CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS, CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
     Signal signal(SIGMA, DATA_LENGTH, SNR_dB);
-    SimulationThread *simulation[NUMBER_OF_THREADS];// = SimulationThread(cfar, signal);
-    //std::thread simulation_thread(&SimulationThread::start_simulation, &simulation, 100000, 0);
-    //simulation_thread.join();
+    SimulationThread *simulation[NUMBER_OF_THREADS];
     
     std::thread simulation_thread[NUMBER_OF_THREADS];
     
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
-    for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
-    {
-        simulation[number_of_thread] = new SimulationThread(cfar, signal);
-    }
 
     for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
     {
