@@ -1,4 +1,3 @@
-#include <any>
 #include <chrono>
 #include <cMath>
 #include <fstream>
@@ -35,7 +34,7 @@ public:
         this->sigma = sigma;
         this->snr_dB = snr_dB;
     }
-    void cleanup() 
+    void cleanup()
     {
         delete[] samples;
         while (!object_index.empty())

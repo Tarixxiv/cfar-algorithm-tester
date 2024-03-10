@@ -428,56 +428,6 @@ public:
     }
 };
 
-//class Signal
-//{
-//public:
-//    std::queue<int> object_index;
-//    int length = 1024;
-//    float sigma = 1;
-//    float snr_dB = 12;
-//    float* signal_samples = NULL;
-//    std::default_random_engine generator;
-//    Signal()
-//    {
-//    }
-//    Signal(Signal &signal)
-//    {
-//        generator = std::default_random_engine((time(NULL)));
-//        this->length = signal.length;
-//        this->sigma = signal.sigma;
-//        this->snr_dB = signal.snr_dB;
-//    }
-//    Signal(float sigma, int length, float snr_dB)
-//    {
-//        generator = std::default_random_engine((time(NULL)));
-//        this->length = length;
-//        this->sigma = sigma;
-//        this->snr_dB = snr_dB;
-//    }
-//    void signal_and_noise_generation()
-//    {
-//        delete[] signal_samples;
-//        signal_samples = new float[length];
-//        std::normal_distribution<float> dist(0, sigma);
-//        srand(time(NULL));
-//        float signal_from_object = pow(10, snr_dB / 20) * sigma;
-//        while (!object_index.empty())
-//            object_index.pop();
-//        object_index.push(rand() % length);
-//        float b = dist(generator);
-//        for (int index = 0; index < length; index++)
-//        {
-//            signal_samples[index] = dist(generator);
-//        }
-//        signal_samples[object_index.front()] += signal_from_object;
-//    }
-//
-//    ~Signal()
-//    {
-//        delete[] signal_samples;
-//    }
-//};
-
 class SimulationThread
 {
 public:
@@ -511,7 +461,7 @@ public:
         {
             signal.signal_and_noise_generation();
             cfar.tested_parameter = CFAR::TestedValues::threshold_factor;
-            CFAROutput cfar_output = cfar.find_objects(signal.signal_samples, signal.length, signal.object_index);
+            CFAROutput cfar_output = cfar.find_objects(signal.samples, signal.length, signal.object_index);
 
             probabilitiesCA.add(cfar_output.detectsCA, cfar_output.false_detectsCA, signal.length);
             probabilitiesGOCA.add(cfar_output.detectsGOCA, cfar_output.false_detectsGOCA, signal.length);
