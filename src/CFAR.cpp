@@ -66,7 +66,7 @@ protected:
         }
     }
 
-    std::vector<std::vector<float>> calculate_means(float signal[], int signal_length)
+    std::vector<std::vector<float>> calculate_means(std::vector<float> signal, int signal_length)
     {
         int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells, signal_length - 1);
         int last_right_guard_cell_number = number_of_guard_cells / 2;
@@ -124,7 +124,7 @@ protected:
         }
         return means;
     }
-    std::vector<std::vector<float>> calculate_means_with_zeros_on_both_sides(float signal[], int signal_length)
+    std::vector<std::vector<float>> calculate_means_with_zeros_on_both_sides(std::vector<float> signal, int signal_length)
     {
         int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells / 2, signal_length - 1);
         int last_right_guard_cell_number = number_of_guard_cells / 2;
@@ -245,7 +245,7 @@ public:
         }
     }
 
-    std::vector<std::vector<float>> calculate_all_thresholds_single(float signal[], unsigned int signal_length, float threshold_factor)
+    std::vector<std::vector<float>> calculate_all_thresholds_single(std::vector<float> signal, unsigned int signal_length, float threshold_factor)
     {
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
@@ -265,7 +265,7 @@ public:
         return thresholds;
     }
 
-    CFAROutput find_objects(float signal[], unsigned int signal_length, std::queue<int> object_indexes, float threshold_factor = 1)
+    CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes, float threshold_factor = 1)
     {
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
