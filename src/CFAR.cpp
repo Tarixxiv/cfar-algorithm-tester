@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include <cMath>
+#include <cmath>
 #include <queue>
 #include <fstream>
 #include <chrono>
@@ -230,9 +230,9 @@ public:
     {
         if (cfar_type == CFAR_Types::CA)
             return (average_center);
-        if (isnan(average_left))
+        if (std::isnan(average_left))
             return average_right;
-        else if (isnan(average_right))
+        else if (std::isnan(average_right))
             return average_left;
         switch (cfar_type)
         {

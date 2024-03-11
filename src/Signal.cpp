@@ -1,5 +1,5 @@
 #include <chrono>
-#include <cMath>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <queue>
@@ -15,21 +15,17 @@ public:
     int length = 1024;
     float sigma = 1;
     float snr_dB = 12;
-    float* samples = NULL;
-    std::default_random_engine generator;
-    Signal()
-    {
-    }
+    float* samples = nullptr;
+    std::default_random_engine generator = std::default_random_engine((time(nullptr)));
+    Signal() = default;
     Signal(Signal& signal)
     {
-        generator = std::default_random_engine((time(NULL)));
         this->length = signal.length;
         this->sigma = signal.sigma;
         this->snr_dB = signal.snr_dB;
     }
     Signal(float sigma, int length, float snr_dB)
     {
-        generator = std::default_random_engine((time(NULL)));
         this->length = length;
         this->sigma = sigma;
         this->snr_dB = snr_dB;
@@ -51,14 +47,14 @@ public:
     }
     void signal_generation()
     {
-        float signal_from_object = pow(10, snr_dB / 20) * sigma;
+        float signal_from_object = (float)pow(10, snr_dB / 20) * sigma;
         object_index.push(rand() % length);
         samples[object_index.front()] += signal_from_object;
     }
 
     void signal_and_noise_generation()
     {
-        srand(time(NULL));
+        srand(time(nullptr));
         cleanup();
         noise_generation();
         signal_generation();
