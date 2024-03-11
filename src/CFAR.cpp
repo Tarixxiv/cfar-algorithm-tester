@@ -20,7 +20,7 @@
 
 #define SIGMA 1
 #define SNR_dB 12
-#define DATA_LENGTH 2048
+#define SIGNAL_LENGTH 2048
 #define TESTS_PER_THREAD 1000
 #define NUMBER_OF_THREADS 5
 
@@ -429,29 +429,32 @@ public:
 
 class Signal
 {
-public:
-    std::queue<int> object_index;
-    int length = 1024;
-    float sigma = 1;
-    float snr_dB = 12;
-    float* signal_samples = NULL;
-    std::default_random_engine generator;
-    Signal()
-    {
-    }
-    Signal(Signal &signal)
-    {
-        generator = std::default_random_engine((time(NULL)));
-        this->length = signal.length;
-        this->sigma = signal.sigma;
-        this->snr_dB = signal.snr_dB;
-    }
-    Signal(float sigma, int length, float snr_dB)
+private:
+    void init(float sigma, int length, float snr_dB)
     {
         generator = std::default_random_engine((time(NULL)));
         this->length = length;
         this->sigma = sigma;
         this->snr_dB = snr_dB;
+    }
+public:
+    std::queue<int> object_index;
+    int length;
+    float sigma;
+    float snr_dB;
+    float* signal_samples = NULL;
+    std::default_random_engine generator;
+    Signal()
+    {
+        init(SIGMA,SIGNAL_LENGTH,SNR_dB);
+    }
+    Signal(Signal &signal)
+    {
+        init(signal.sigma, signal.length, signal.snr_dB);
+    }
+    Signal(float sigma, int length, float snr_dB)
+    {
+        init(sigma, length, snr_dB);
     }
     void signal_generation()
     {
@@ -523,10 +526,12 @@ public:
         std::cout << "thread " << number_of_thread << " finished\n";// after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
 
     }
+
     ~SimulationThread()
     {
 
     }
+
     void add(SimulationThread& finished_simulation)
     {
         probabilitiesCA.add(finished_simulation.probabilitiesCA);
@@ -538,7 +543,7 @@ public:
 int main()
 {
     CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS, CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
-    Signal signal(SIGMA, DATA_LENGTH, SNR_dB);
+    Signal signal(SIGMA, SIGNAL_LENGTH, SNR_dB);
     SimulationThread *simulation[NUMBER_OF_THREADS];
     
     std::thread simulation_thread[NUMBER_OF_THREADS];
