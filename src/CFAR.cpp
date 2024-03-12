@@ -24,6 +24,7 @@
 #define DATA_LENGTH 2048
 #define TESTS_PER_THREAD 1000
 #define NUMBER_OF_THREADS 5
+#define SIGNAL_COUNT 2
 
 //using namespace std;
 struct CFAROutput
@@ -265,7 +266,7 @@ public:
         return thresholds;
     }
 
-    CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes, float threshold_factor = 1)
+    CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes_queue, float threshold_factor = 1)
     {
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
@@ -309,7 +310,7 @@ public:
 
                     if (threshold < signal[cell_under_test_number])
                     {
-                        if (!object_indexes.empty() && cell_under_test_number == object_indexes.front())
+                        if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
                         {
                             detects_and_false_detects_count[(int)algorithm_type][tested_values_index] += 1;
                         }
@@ -322,9 +323,9 @@ public:
                         break;
                 }
             }
-            if (!object_indexes.empty() && cell_under_test_number == object_indexes.front())
+            if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
             {
-                object_indexes.pop();
+                object_indexes_queue.pop();
             }
         }
         CFAROutput output(detects_and_false_detects_count);
@@ -459,9 +460,9 @@ public:
         std::cout << "thread " << number_of_thread << " started\n";
         for (int counter = 0; counter < number_of_tests; counter++)
         {
-            signal.signal_and_noise_generation();
+            signal.signal_and_noise_generation(SIGNAL_COUNT);
             cfar.tested_parameter = CFAR::TestedValues::threshold_factor;
-            CFAROutput cfar_output = cfar.find_objects(signal.samples, signal.length, signal.object_index);
+            CFAROutput cfar_output = cfar.find_objects(signal.samples, signal.length, signal.object_indexes_queue);
 
             probabilitiesCA.add(cfar_output.detectsCA, cfar_output.false_detectsCA, signal.length);
             probabilitiesGOCA.add(cfar_output.detectsGOCA, cfar_output.false_detectsGOCA, signal.length);
@@ -489,7 +490,7 @@ public:
 int main()
 {
     CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS, CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
-    Signal signal(SIGMA, DATA_LENGTH, SNR_dB);
+    Signal signal(SIGMA, DATA_LENGTH, SNR_dB, CFAR_GUARD_CELLS);
     SimulationThread *simulation[NUMBER_OF_THREADS];
     
     std::thread simulation_thread[NUMBER_OF_THREADS];
