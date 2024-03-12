@@ -23,11 +23,12 @@ private:
 
     void noise_generation()
     {
+        samples = {};
         samples.reserve(length);
         std::normal_distribution<float> dist(0, sigma);
         for (int index = 0; index < length; index++)
         {
-            samples[index] = dist(generator);
+            samples.push_back(dist(generator));
         }
     }
 
