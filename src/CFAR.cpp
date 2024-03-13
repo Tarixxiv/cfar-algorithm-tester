@@ -489,12 +489,16 @@ public:
 
 int main()
 {
-    CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS, CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
-    Signal signal(SIGMA, DATA_LENGTH, SNR_dB, CFAR_GUARD_CELLS);
+    CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS,
+              CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE,
+              CFAR_DALTA_TESTED_VALUE);
+    float amplitude = (float)pow(10, (float)SNR_dB / 20) * SIGMA;
+    Signal signal(SIGMA, DATA_LENGTH, SNR_dB, CFAR_GUARD_CELLS,
+                  {amplitude, amplitude*1000});
     SimulationThread *simulation[NUMBER_OF_THREADS];
-    
+
     std::thread simulation_thread[NUMBER_OF_THREADS];
-    
+
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)

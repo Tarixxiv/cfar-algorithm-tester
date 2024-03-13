@@ -15,6 +15,7 @@ class Signal
 private:
     float sigma = 1;
     float snr_dB = 12;
+    std::vector<float> signal_amplitudes = {(float)pow(10, snr_dB / 20) * sigma};
     std::default_random_engine noise_generator = std::default_random_engine((time(nullptr)));
 
     void noise_generation()
@@ -37,9 +38,7 @@ private:
 
     void signal_generation(int signal_count)
     {
-        float signal_from_object = (float)pow(10, snr_dB / 20) * sigma;
         int index;
-
         for (int i = 0; i < signal_count; ++i) {
             if (object_indexes.empty()){
                 index = rand() % length;
@@ -53,7 +52,7 @@ private:
                 }
             }
             object_indexes.push_back(index);
-            samples[index] += signal_from_object;
+            samples[index] += signal_amplitudes[i%signal_amplitudes.size()];
         }
 
     }
@@ -80,14 +79,17 @@ public:
         this->length = signal.length;
         this->sigma = signal.sigma;
         this->snr_dB = signal.snr_dB;
+        this->signal_max_distance = signal.signal_max_distance;
+        this->signal_amplitudes = signal.signal_amplitudes;
     }
 
-    Signal(float sigma, int length, float snr_dB, int signal_max_distance)
+    Signal(float sigma, int length, float snr_dB, int signal_max_distance, std::vector<float> signal_amplitudes)
     {
         this->length = length;
         this->sigma = sigma;
         this->snr_dB = snr_dB;
         this->signal_max_distance = signal_max_distance;
+        this->signal_amplitudes = signal_amplitudes;
     }
 
     void signal_and_noise_generation(int signal_count)
