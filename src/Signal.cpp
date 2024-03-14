@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <queue>
 
-
 class Signal
 {
 private:
@@ -17,6 +16,7 @@ private:
     float snr_dB = 12;
     std::vector<float> signal_amplitudes = {(float)pow(10, snr_dB / 20) * sigma};
     std::default_random_engine noise_generator = std::default_random_engine((time(nullptr)));
+
 
     void noise_generation()
     {
@@ -32,9 +32,27 @@ private:
         return !(std::find(vector.begin(), vector.end(), value) == vector.end()) || vector.back() == value ;
     }
 
+#ifdef UNIT_TESTING
+    static int generate_int_in_range(int min, int max) {
+        static size_t test_count = 0;
+        if (test_count == 0) {
+            test_count++;
+            return min;
+        }
+        if (test_count == 1) {
+            test_count++;
+            return max;
+        }
+        if (test_count >= 2) {
+            test_count++;
+            return (min + max) / 2;
+        }
+    }
+#else
     static int generate_int_in_range(int bot, int top){
         return rand() % (top + 1 - bot) + bot;
     }
+#endif
 
     void signal_generation(int signal_count)
     {
