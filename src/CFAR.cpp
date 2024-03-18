@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include <cMath>
+#include <cmath>
 #include <queue>
 #include <fstream>
 #include <chrono>
@@ -21,9 +21,12 @@
 
 #define SIGMA 1
 #define SNR_dB 12
+#define OBJECT_DISTANCE 10
 #define DATA_LENGTH 2048
 #define TESTS_PER_THREAD 1000
 #define NUMBER_OF_THREADS 5
+#define SIGNAL_COUNT 2
+
 
 //using namespace std;
 struct CFAROutput
@@ -47,7 +50,7 @@ struct CFAROutput
 class CFAR
 {
 private:
-    
+
     int number_of_guard_cells = 0;
     int number_of_training_cells = 0;
 
@@ -66,7 +69,7 @@ protected:
         }
     }
 
-    std::vector<std::vector<float>> calculate_means(float signal[], int signal_length)
+    std::vector<std::vector<float>> calculate_means(std::vector<float> signal, int signal_length)
     {
         int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells, signal_length - 1);
         int last_right_guard_cell_number = number_of_guard_cells / 2;
@@ -124,7 +127,7 @@ protected:
         }
         return means;
     }
-    std::vector<std::vector<float>> calculate_means_with_zeros_on_both_sides(float signal[], int signal_length)
+    std::vector<std::vector<float>> calculate_means_with_zeros_on_both_sides(std::vector<float> signal, int signal_length)
     {
         int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells / 2, signal_length - 1);
         int last_right_guard_cell_number = number_of_guard_cells / 2;
@@ -204,7 +207,7 @@ public:
         init(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS, CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
     }
 
-    CFAR(CFAR &cfar)
+    CFAR(CFAR& cfar)
     {
         this->number_of_guard_cells = cfar.number_of_guard_cells;
         this->number_of_training_cells = cfar.number_of_training_cells;
@@ -223,16 +226,16 @@ public:
 
     ~CFAR()
     {
-        
-    } 
+
+    }
 
     float calculate_threshold(float average_left, float average_right, float average_center, CFAR_Types cfar_type)
     {
         if (cfar_type == CFAR_Types::CA)
             return (average_center);
-        if (isnan(average_left))
+        if (std::isnan(average_left))
             return average_right;
-        else if (isnan(average_right))
+        else if (std::isnan(average_right))
             return average_left;
         switch (cfar_type)
         {
@@ -245,7 +248,7 @@ public:
         }
     }
 
-    std::vector<std::vector<float>> calculate_all_thresholds_single(float signal[], unsigned int signal_length, float threshold_factor)
+    std::vector<std::vector<float>> calculate_all_thresholds_single(std::vector<float> signal, unsigned int signal_length, float threshold_factor)
     {
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
@@ -265,7 +268,7 @@ public:
         return thresholds;
     }
 
-    CFAROutput find_objects(float signal[], unsigned int signal_length, std::queue<int> object_indexes, float threshold_factor = 1)
+    CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes_queue, float threshold_factor = 1)
     {
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
         {
@@ -305,11 +308,11 @@ public:
                         threshold = threshold_base;
                         break;
                     }
-                      
+
 
                     if (threshold < signal[cell_under_test_number])
                     {
-                        if (!object_indexes.empty() && cell_under_test_number == object_indexes.front())
+                        if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
                         {
                             detects_and_false_detects_count[(int)algorithm_type][tested_values_index] += 1;
                         }
@@ -322,9 +325,9 @@ public:
                         break;
                 }
             }
-            if (!object_indexes.empty() && cell_under_test_number == object_indexes.front())
+            if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
             {
-                object_indexes.pop();
+                object_indexes_queue.pop();
             }
         }
         CFAROutput output(detects_and_false_detects_count);
@@ -344,11 +347,11 @@ public:
     void add(unsigned int detects_count, unsigned int false_detects_count, int data_len, int number_of_objects = 1)
     {
         number_of_detected_objects += detects_count;
-        number_of_false_detects +=false_detects_count;
-        total_cells_number +=data_len - number_of_objects;
-        total_objects_number +=number_of_objects;
+        number_of_false_detects += false_detects_count;
+        total_cells_number += data_len - number_of_objects;
+        total_objects_number += number_of_objects;
     }
-    void add(Probabilities &probabilities)
+    void add(Probabilities& probabilities)
     {
         number_of_detected_objects += probabilities.number_of_detected_objects;
         number_of_false_detects += probabilities.number_of_false_detects;
@@ -360,7 +363,7 @@ public:
         probability_of_detection = (float)number_of_detected_objects / (float)total_objects_number;
         probability_of_false_detection = (float)number_of_false_detects / (float)total_cells_number;
     }
-    
+
 };
 
 class ProbabilitiesForMultipleThresholdFactors
@@ -419,7 +422,7 @@ public:
             probabilities[index].add((unsigned int)detects_count[index], (unsigned int)false_detects_count[index], data_len, number_of_objects);
         }
     }
-    void add(ProbabilitiesForMultipleThresholdFactors &results_to_add)
+    void add(ProbabilitiesForMultipleThresholdFactors& results_to_add)
     {
         for (int index = 0; index < tested_value_table_size; index++)
         {
@@ -437,7 +440,7 @@ public:
     ProbabilitiesForMultipleThresholdFactors probabilitiesGOCA;
     ProbabilitiesForMultipleThresholdFactors probabilitiesSOCA;
 
-    SimulationThread(CFAR &cfar, Signal &signal)
+    SimulationThread(CFAR& cfar, Signal& signal)
     {
         this->signal = Signal(signal);
         this->cfar = CFAR(cfar);
@@ -452,16 +455,16 @@ public:
         probabilitiesGOCA.export_to_csv("output/outputGOCA.csv");
         probabilitiesSOCA.export_to_csv("output/outputSOCA.csv");
     }
-    
+
     void start_simulation(int number_of_tests, int number_of_thread = 0)
     {
         //std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
         std::cout << "thread " << number_of_thread << " started\n";
         for (int counter = 0; counter < number_of_tests; counter++)
         {
-            signal.signal_and_noise_generation();
+            signal.signal_and_noise_generation(OBJECT_DISTANCE);
             cfar.tested_parameter = CFAR::TestedValues::threshold_factor;
-            CFAROutput cfar_output = cfar.find_objects(signal.samples, signal.length, signal.object_index);
+            CFAROutput cfar_output = cfar.find_objects(signal.samples, signal.length, signal.object_indexes_queue);
 
             probabilitiesCA.add(cfar_output.detectsCA, cfar_output.false_detectsCA, signal.length);
             probabilitiesGOCA.add(cfar_output.detectsGOCA, cfar_output.false_detectsGOCA, signal.length);
@@ -470,7 +473,7 @@ public:
                 std::cout << "thread " << number_of_thread << " reached " << counter << " tests\n";
         }
         //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-        
+
         std::cout << "thread " << number_of_thread << " finished\n";// after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
 
     }
@@ -488,12 +491,16 @@ public:
 
 int main()
 {
-    CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS, CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
-    Signal signal(SIGMA, DATA_LENGTH, SNR_dB);
-    SimulationThread *simulation[NUMBER_OF_THREADS];
-    
+    CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS,
+        CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE,
+        CFAR_DALTA_TESTED_VALUE);
+    float amplitude = (float)pow(10, (float)SNR_dB / 20) * SIGMA;
+    Signal signal(SIGMA, DATA_LENGTH, SNR_dB, CFAR_GUARD_CELLS,
+        { amplitude, amplitude * 1000 });
+    SimulationThread* simulation[NUMBER_OF_THREADS];
+
     std::thread simulation_thread[NUMBER_OF_THREADS];
-    
+
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
