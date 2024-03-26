@@ -1,3 +1,27 @@
+cd src; cmake -S . -B build; cmake --build build; cd build; ctest; cd ../../
+
+
+for (int i = 0; i < signal_count; i++) {
+for (int j = 0; j < signal_count; j++) {
+if (i != j) {
+if (test_count == 0) {
+test_count++;
+return min;
+}
+if (test_count == 1) {
+test_count++;
+return max;
+}
+if (test_count >= 2) {
+test_count++;
+return (min + max) / 2;
+}
+}
+}
+}
+
+
+
 #include <iostream>
 #include <string>
 #include <cmath>
@@ -7,8 +31,8 @@
 #include <thread>
 #include <vector>
 #include <random>
+#include <fstream>
 #include "Signal.cpp"
-
 #define LEFT 0
 #define RIGHT 1
 #define CENTER 2
@@ -239,12 +263,12 @@ public:
             return average_left;
         switch (cfar_type)
         {
-        case CFAR_Types::GOCA:
-            return std::max(average_left, average_right);
-        case CFAR_Types::SOCA:
-            return std::min(average_left, average_right);
-        default:
-            return nanf("");
+            case CFAR_Types::GOCA:
+                return std::max(average_left, average_right);
+            case CFAR_Types::SOCA:
+                return std::min(average_left, average_right);
+            default:
+                return nanf("");
         }
     }
 
@@ -298,15 +322,15 @@ public:
                     float threshold;
                     switch (tested_parameter)
                     {
-                    case TestedValues::threshold_factor:
-                        threshold = threshold_base * tested_parameters_table[tested_values_index];
-                        break;
-                    case TestedValues::threshold_offset:
-                        threshold = threshold_factor * threshold_base + tested_parameters_table[tested_values_index];
-                        break;
-                    default:
-                        threshold = threshold_base;
-                        break;
+                        case TestedValues::threshold_factor:
+                            threshold = threshold_base * tested_parameters_table[tested_values_index];
+                            break;
+                        case TestedValues::threshold_offset:
+                            threshold = threshold_factor * threshold_base + tested_parameters_table[tested_values_index];
+                            break;
+                        default:
+                            threshold = threshold_base;
+                            break;
                     }
 
 
@@ -331,6 +355,23 @@ public:
             }
         }
         CFAROutput output(detects_and_false_detects_count);
+
+
+
+
+        //test//
+        std::ofstream file_obj;
+        // Opening file in append mode
+        file_obj.open("seed_451.txt", std::ios::app);
+        for(std::vector<int> i : detects_and_false_detects_count ) {
+            file_obj.write((char*)&detects_and_false_detects_count, sizeof(detects_and_false_detects_count));
+        }
+        file_obj.close();
+
+
+
+
+
         return output;
     }
 };
@@ -492,11 +533,19 @@ public:
 int main()
 {
     CFAR cfar(CFAR_GUARD_CELLS, CFAR_TRAINING_CELLS,
-        CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE,
-        CFAR_DALTA_TESTED_VALUE);
+              CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE,
+              CFAR_DALTA_TESTED_VALUE);
     float amplitude = (float)pow(10, (float)SNR_dB / 20) * SIGMA;
     Signal signal(SIGMA, DATA_LENGTH, SNR_dB, CFAR_GUARD_CELLS,
-        { amplitude, amplitude * 1000 });
+                  { amplitude, amplitude * 1000 });
+
+    srand(451);
+    signal.signal_and_noise_generation(CFAR_GUARD_CELLS);
+    CFAROutput cfar_output = cfar.find_objects(signal.samples, signal.length, signal.object_indexes_queue);
+
+    //rest in the cfar find
+
+
     SimulationThread* simulation[NUMBER_OF_THREADS];
 
     std::thread simulation_thread[NUMBER_OF_THREADS];
