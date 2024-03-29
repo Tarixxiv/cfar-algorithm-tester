@@ -1,27 +1,3 @@
-cd src; cmake -S . -B build; cmake --build build; cd build; ctest; cd ../../
-
-
-for (int i = 0; i < signal_count; i++) {
-for (int j = 0; j < signal_count; j++) {
-if (i != j) {
-if (test_count == 0) {
-test_count++;
-return min;
-}
-if (test_count == 1) {
-test_count++;
-return max;
-}
-if (test_count >= 2) {
-test_count++;
-return (min + max) / 2;
-}
-}
-}
-}
-
-
-
 #include <iostream>
 #include <string>
 #include <cmath>
@@ -47,7 +23,7 @@ return (min + max) / 2;
 #define SNR_dB 12
 #define OBJECT_DISTANCE 10
 #define DATA_LENGTH 2048
-#define TESTS_PER_THREAD 1000
+#define TESTS_PER_THREAD 100
 #define NUMBER_OF_THREADS 5
 #define SIGNAL_COUNT 2
 
@@ -360,13 +336,15 @@ public:
 
 
         //test//
-        std::ofstream file_obj;
+        std::ofstream file;
         // Opening file in append mode
-        file_obj.open("seed_451.txt", std::ios::app);
-        for(std::vector<int> i : detects_and_false_detects_count ) {
-            file_obj.write((char*)&detects_and_false_detects_count, sizeof(detects_and_false_detects_count));
+        file.open("seed_451.txt", std::ios::app);
+        for(std::vector<int> vec : detects_and_false_detects_count ) {
+            for(int i : vec){
+                file << i;
+            }
         }
-        file_obj.close();
+        file.close();
 
 
 
@@ -545,6 +523,7 @@ int main()
 
     //rest in the cfar find
 
+/*srand(time(nullptr));
 
     SimulationThread* simulation[NUMBER_OF_THREADS];
 
@@ -571,4 +550,4 @@ int main()
 
     std::cout << "Simulation finished after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
     std::cin.get();
-}
+*/}

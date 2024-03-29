@@ -148,7 +148,6 @@ public:
     {
         object_indexes = {};
         samples = {};
-        srand(time(nullptr));
         noise_generation();
         two_signal_generation(signal_distance);
         //two_signal_generation(signal_count);
