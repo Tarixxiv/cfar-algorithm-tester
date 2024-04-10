@@ -184,58 +184,6 @@ protected:
         return means;
     }
 
-    std::vector<float> calculate_medians_with_zeros_on_both_sides(std::vector<float> signal, int signal_length)
-    {
-        int last_right_training_cell_number = std::min(number_of_guard_cells / 2 + number_of_training_cells / 2, signal_length - 1);
-        int last_right_guard_cell_number = number_of_guard_cells / 2;
-        int first_left_training_cell_number = -number_of_guard_cells / 2 - number_of_training_cells / 2;
-        int first_left_guard_cell_number = -number_of_guard_cells / 2;
-        int count_left;
-        int count_right;
-        float sum_left = 0;
-        float sum_right = 0;
-        count_left = number_of_training_cells / 2;
-        count_right = number_of_training_cells / 2;
-        for (int cell_number = last_right_guard_cell_number; cell_number < last_right_training_cell_number; cell_number++)
-            sum_right += signal[cell_number];
-        std::vector<float> vector_for_median;
-        std::vector<float> median;
-        int median_value = 0;
-
-        for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
-        {
-            if (first_left_training_cell_number - 1 >= 0)
-                vector_for_median = remove_number_from_the_median(vector_for_median, signal[first_left_training_cell_number - 1]);
-            if (first_left_guard_cell_number > 0)
-                vector_for_median = add_number_to_the_median(vector_for_median, signal[first_left_guard_cell_number - 1]);
-            if (last_right_training_cell_number < signal_length)
-                vector_for_median = add_number_to_the_median(vector_for_median, signal[last_right_guard_cell_number]);
-            if (last_right_guard_cell_number < signal_length)
-                vector_for_median = remove_number_from_the_median(vector_for_median, signal[last_right_guard_cell_number]);
-
-            if (vector_for_median.size() % 2 == 1) {
-                median_value = vector_for_median[vector_for_median.size()/2+0.5];
-            }
-            else {
-                median_value = (vector_for_median[vector_for_median.size()/2] + vector_for_median[vector_for_median.size()/2+1])/2;
-            }
-            median[cell_under_test_number] = median_value;
-
-            last_right_training_cell_number += 1;
-            last_right_guard_cell_number += 1;
-            first_left_training_cell_number += 1;
-            first_left_guard_cell_number += 1;
-            if (first_left_training_cell_number <= 0 && 0 < first_left_guard_cell_number)
-            {
-                last_right_training_cell_number = std::min(last_right_training_cell_number - 1, signal_length - 1);
-            }
-            if (last_right_training_cell_number >= signal_length && signal_length > last_right_guard_cell_number && first_left_training_cell_number - 1 >= 0)
-            {
-                first_left_training_cell_number -= 1;
-            }
-        }
-        return means;
-    }
 
     std::vector<float> add_number_to_the_median(std::vector<float> median_vector, int number)
     {
@@ -251,12 +199,63 @@ protected:
         for (int i = 0; i < median_vector.size(); i++) {
             if (median_vector[i] == number) {
                 index = i;
-                break; 
+                break;
             }
         }
-        median_vector.erase(median_vector.begin() + index + 1);
+        median_vector.erase(median_vector.begin() + index);
 
         return median_vector;
+    }
+
+    std::vector<float> calculate_medians_with_zeros_on_both_sides(std::vector<float> signal, int signal_length)
+    {
+        int last_right_training_cell_number = number_of_training_cells - number_of_guard_cells + std::min(number_of_guard_cells / 2 + number_of_training_cells / 2, signal_length - 1);
+        int last_right_guard_cell_number = number_of_training_cells - number_of_guard_cells + number_of_guard_cells / 2;
+        int first_left_training_cell_number = number_of_training_cells - number_of_guard_cells - number_of_guard_cells / 2 - number_of_training_cells / 2;
+        int first_left_guard_cell_number = number_of_training_cells - number_of_guard_cells - number_of_guard_cells / 2;
+
+        std::vector<float> vector_for_median;
+        std::vector<float> median;
+        float median_value = 0;
+
+        signal.insert(signal.begin(), number_of_training_cells - number_of_guard_cells, 0);
+        signal.insert(signal.end(), number_of_training_cells - number_of_guard_cells, 0);
+        for (int i = 0; i < 2 * (number_of_training_cells - number_of_guard_cells) + 1; i++) {
+            if (i != number_of_training_cells - number_of_guard_cells) {
+                vector_for_median.push_back(signal[i]);
+            }
+        }
+        std::sort(vector_for_median.begin(), vector_for_median.end());
+
+        for (int cell_under_test_number = number_of_training_cells - number_of_guard_cells; cell_under_test_number < signal_length - 1; cell_under_test_number++)
+        {
+            if (vector_for_median.size() > 0) {
+                if (vector_for_median.size() % 2 == 1) {
+                    median_value = vector_for_median[vector_for_median.size() / 2 + 0.5];
+                }
+                else {
+                    int help = vector_for_median.size() / 2;
+                    median_value = (vector_for_median[vector_for_median.size() / 2 - 1] + vector_for_median[vector_for_median.size() / 2]) / 2;
+                }
+                median.push_back(median_value);
+            }
+
+            last_right_training_cell_number += 1;
+            last_right_guard_cell_number += 1;
+            first_left_training_cell_number += 1;
+            first_left_guard_cell_number += 1;
+            if (last_right_training_cell_number >= signal_length && signal_length > last_right_guard_cell_number && first_left_training_cell_number - 1 >= 0)
+            {
+                first_left_training_cell_number -= 1;
+            }
+
+            vector_for_median = remove_number_from_the_median(vector_for_median, signal[first_left_training_cell_number]);
+            vector_for_median = add_number_to_the_median(vector_for_median, signal[first_left_guard_cell_number]);
+            vector_for_median = add_number_to_the_median(vector_for_median, signal[last_right_training_cell_number - 1]);
+            vector_for_median = remove_number_from_the_median(vector_for_median, signal[last_right_guard_cell_number - 1]);
+
+        }
+        return median;
     }
 
 public:
