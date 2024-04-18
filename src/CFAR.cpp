@@ -219,7 +219,7 @@ protected:
         float median_value = 0;
 
         signal.insert(signal.begin(), number_of_training_cells - number_of_guard_cells, 0);
-        signal.insert(signal.end(), number_of_training_cells - number_of_guard_cells, 0);
+        signal.insert(signal.end(), number_of_training_cells - number_of_guard_cells + 1, 0);
         for (int i = 0; i < 2 * (number_of_training_cells - number_of_guard_cells) + 1; i++) {
             if (i != number_of_training_cells - number_of_guard_cells) {
                 vector_for_median.push_back(signal[i]);
@@ -227,7 +227,7 @@ protected:
         }
         std::sort(vector_for_median.begin(), vector_for_median.end());
 
-        for (int cell_under_test_number = number_of_training_cells - number_of_guard_cells; cell_under_test_number < signal_length - 1; cell_under_test_number++)
+        for (int cell_under_test_number = number_of_training_cells - number_of_guard_cells; cell_under_test_number < signal_length + number_of_training_cells - number_of_guard_cells; cell_under_test_number++)
         {
             if (vector_for_median.size() > 0) {
                 if (vector_for_median.size() % 2 == 1) {
