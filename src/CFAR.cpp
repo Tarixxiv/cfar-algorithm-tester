@@ -8,7 +8,6 @@
 #include <vector>
 #include <random>
 #include "Signal.cpp"
-#include <stdc++.h>
 
 #define LEFT 0
 #define RIGHT 1
