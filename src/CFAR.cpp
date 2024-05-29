@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <random>
+#include <direct.h>
 #include "Signal.cpp"
 
 #define LEFT 0
@@ -23,8 +24,10 @@
 #define SNR_dB 12
 #define OBJECT_DISTANCE 10
 #define DATA_LENGTH 2048
-#define TESTS_PER_THREAD 1000
-#define NUMBER_OF_THREADS 5
+#define TESTS_PER_THREAD 100
+//#define TESTS_PER_THREAD 1000
+#define NUMBER_OF_THREADS 2
+//#define NUMBER_OF_THREADS 5
 #define SIGNAL_COUNT 2
 
 
@@ -343,14 +346,7 @@ public:
         return thresholds;
     }
 
-    CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes_queue, float threshold_factor = 1)
-    {
-        for (int cell_number = 0; cell_number < signal_length; cell_number++)
-        {
-            signal[cell_number] = signal[cell_number] * signal[cell_number];
-        }
-        std::vector<std::vector<float>> means = calculate_means(signal, signal_length);
-        std::vector< std::vector<int> > detects_and_false_detects_count(2 * (int)CFAR_Types::end_of_enum);
+    void prepare_detects_count_array(std::vector<std::vector<int>>& detects_and_false_detects_count) {
         for (int i = 0; i < detects_and_false_detects_count.size(); i++)
         {
             detects_and_false_detects_count[i] = std::vector<int>(tested_parameters_table_size);
@@ -363,6 +359,20 @@ public:
                 detects_and_false_detects_count[(int)algorithm_type + 3][threshold_offset_index] = 0;
             }
         }
+        return;
+    }
+
+    CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes_queue, float threshold_factor = 1)
+    {
+        for (int cell_number = 0; cell_number < signal_length; cell_number++)
+        {
+            signal[cell_number] = signal[cell_number] * signal[cell_number];
+        }
+        std::vector<std::vector<float>> means = calculate_means(signal, signal_length);
+        std::vector< std::vector<int> > detects_and_false_detects_count(2 * (int)CFAR_Types::end_of_enum);
+
+        prepare_detects_count_array(detects_and_false_detects_count);
+
         for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
         {
             for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
@@ -482,6 +492,7 @@ public:
         {
             probabilities[index].calculate_probabilities();
         }
+        _mkdir("output");
         std::ofstream output(filepath);
         output << header;
         for (int index = 0; index < tested_value_table_size; index++)

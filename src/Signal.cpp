@@ -54,27 +54,6 @@ private:
     }
 #endif
 
-    //void signal_generation(int signal_count)
-    //{
-    //    int index;
-    //    for (int i = 0; i < signal_count; ++i) {
-    //        if (object_indexes.empty()) {
-    //            index = rand() % length;
-    //        }
-    //        else {
-    //            while (!
-    //                (index >= 0 && index < length &&
-    //                    !(isIntInVector(index, object_indexes)))) {
-    //                int neighbour_index = rand() % object_indexes.size();
-    //                index = object_indexes[neighbour_index] + generate_int_in_range(-signal_max_distance,
-    //                    signal_max_distance);
-    //            }
-    //        }
-    //        object_indexes.push_back(index);
-    //        samples[index] += signal_amplitudes[i % signal_amplitudes.size()];
-    //    }
-    //}
-
     void two_signal_generation(int distance)
     {
         int index = rand() % (length - distance - 1);
