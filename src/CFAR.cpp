@@ -362,6 +362,23 @@ public:
         return;
     }
 
+    float choose_treshold(float threshold_factor, float threshold_base, int tested_values_index) {
+        float threshold;
+        switch (tested_parameter)
+        {
+        case TestedValues::threshold_factor:
+            threshold = threshold_base * tested_parameters_table[tested_values_index];
+            break;
+        case TestedValues::threshold_offset:
+            threshold = threshold_factor * threshold_base + tested_parameters_table[tested_values_index];
+            break;
+        default:
+            threshold = threshold_base;
+            break;
+        }
+        return threshold;
+    }
+
     CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes_queue, float threshold_factor = 1)
     {
         for (int cell_number = 0; cell_number < signal_length; cell_number++)
@@ -380,21 +397,7 @@ public:
                 float threshold_base = calculate_threshold(means[LEFT][cell_under_test_number], means[RIGHT][cell_under_test_number], means[CENTER][cell_under_test_number], algorithm_type);
                 for (int tested_values_index = 0; tested_values_index < tested_parameters_table_size; tested_values_index++)
                 {
-                    float threshold;
-                    switch (tested_parameter)
-                    {
-                    case TestedValues::threshold_factor:
-                        threshold = threshold_base * tested_parameters_table[tested_values_index];
-                        break;
-                    case TestedValues::threshold_offset:
-                        threshold = threshold_factor * threshold_base + tested_parameters_table[tested_values_index];
-                        break;
-                    default:
-                        threshold = threshold_base;
-                        break;
-                    }
-
-
+                    float threshold = choose_treshold(threshold_factor, threshold_base, tested_values_index);
                     if (threshold < signal[cell_under_test_number])
                     {
                         if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
