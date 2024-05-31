@@ -7,7 +7,6 @@
 #include <thread>
 #include <vector>
 #include <random>
-#include <direct.h>
 #include "Signal.cpp"
 
 #define LEFT 0
@@ -495,7 +494,6 @@ public:
         {
             probabilities[index].calculate_probabilities();
         }
-        _mkdir("output");
         std::ofstream output(filepath);
         output << header;
         for (int index = 0; index < tested_value_table_size; index++)
