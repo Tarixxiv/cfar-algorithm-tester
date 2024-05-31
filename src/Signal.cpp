@@ -5,6 +5,7 @@
 #include <queue>
 #include <random>
 #include <thread>
+#include <utility>
 #include <vector>
 #include <algorithm>
 #include <queue>
@@ -14,6 +15,7 @@ class Signal
 private:
     float sigma = 1;
     float snr_dB = 12;
+    int shadow_length = 30;
     std::vector<float> signal_amplitudes = { (float)pow(10, snr_dB / 20) * sigma };
     std::default_random_engine noise_generator = std::default_random_engine((time(nullptr)));
 
@@ -58,9 +60,9 @@ private:
     {
         int index = rand() % (length - distance - 1);
         object_indexes.push_back(index);
-        samples[index] += signal_amplitudes[0];
+        add_signal_to_samples(index,signal_amplitudes[0]);
         object_indexes.push_back(index + distance);
-        samples[index] += signal_amplitudes[1 % signal_amplitudes.size()];
+        add_signal_to_samples(index + distance,signal_amplitudes[1 % signal_amplitudes.size()]);
     }
 
     void setQueue() {
@@ -71,6 +73,29 @@ private:
             object_indexes_queue.push(element);
         }
     }
+
+    [[nodiscard]] std::vector<float> generate_signal_vector(float amplitude) const{
+        std::vector<float> shadow = {};
+        for (int i = 1; i <= shadow_length; ++i) {
+            shadow.push_back((float)pow(sin(0.5*i)/(0.5*i),2) * amplitude);
+        }
+        std::vector<float> output = {};
+        output.insert( output.end(), shadow.begin(), shadow.end() );
+        output.push_back(amplitude);
+        output.insert( output.end(), shadow.rbegin(), shadow.rend() );
+        return output;
+    }
+
+    void add_signal_to_samples(int index, float amplitude){
+        std::vector<float> signalVector = generate_signal_vector(amplitude);
+        for (int i = 0; i < signalVector.size(); ++i) {
+            int samples_iteration_index = index + i - shadow_length;
+            if (samples_iteration_index > 0 && samples_iteration_index < samples.size()) {
+                samples[index + i - shadow_length] += signalVector[i];
+            }
+        }
+    }
+
 public:
     std::queue<int> object_indexes_queue;
     std::vector<int> object_indexes;
@@ -95,7 +120,7 @@ public:
         this->sigma = sigma;
         this->snr_dB = snr_dB;
         this->signal_max_distance = signal_max_distance;
-        this->signal_amplitudes = signal_amplitudes;
+        this->signal_amplitudes = std::move(signal_amplitudes);
     }
 
     void signal_and_noise_generation(int signal_distance)
