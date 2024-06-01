@@ -8,10 +8,14 @@
 #include <vector>
 #include <random>
 #include "Signal.cpp"
+//#include <stdc++.h>
+
+#define TESTED_TYPE median
 
 #define LEFT 0
 #define RIGHT 1
 #define CENTER 2
+#define MEDIAN 3
 
 #define CFAR_GUARD_CELLS 8
 #define CFAR_TRAINING_CELLS 36
@@ -23,11 +27,9 @@
 #define SNR_dB 12
 #define OBJECT_DISTANCE 10
 #define DATA_LENGTH 2048
-#define TESTS_PER_THREAD 100
-//#define TESTS_PER_THREAD 1000
-#define NUMBER_OF_THREADS 2
-//#define NUMBER_OF_THREADS 5
-#define SIGNAL_COUNT 2
+#define TESTS_PER_THREAD 500
+#define NUMBER_OF_THREADS 1
+#define NUMBER_OF_OBJECTS 2
 
 
 //using namespace std;
@@ -36,17 +38,21 @@ struct CFAROutput
     std::vector<int> detectsCA;
     std::vector<int> detectsGOCA;
     std::vector<int> detectsSOCA;
+    std::vector<int> detectsMedian;
     std::vector<int> false_detectsCA;
     std::vector<int> false_detectsGOCA;
     std::vector<int> false_detectsSOCA;
+    std::vector<int> false_detectsMedian;
     CFAROutput(std::vector<std::vector<int>> results)
     {
         detectsCA = results[0];
         detectsGOCA = results[1];
         detectsSOCA = results[2];
-        false_detectsCA = results[3];
-        false_detectsGOCA = results[4];
-        false_detectsSOCA = results[5];
+        detectsMedian = results[3];
+        false_detectsCA = results[4];
+        false_detectsGOCA = results[5];
+        false_detectsSOCA = results[6];
+        false_detectsMedian = results[7];
     }
 };
 class CFAR
@@ -265,7 +271,8 @@ public:
         CA = 0,
         GOCA = 1,
         SOCA = 2,
-        end_of_enum = 3
+        median = 3,
+        end_of_enum = 4
     };
 
     enum class TestedValues
@@ -306,7 +313,7 @@ public:
 
     }
 
-    float calculate_threshold(float average_left, float average_right, float average_center, CFAR_Types cfar_type)
+    float calculate_threshold(float average_left, float average_right, float average_center, float median, CFAR_Types cfar_type)
     {
         if (cfar_type == CFAR_Types::CA)
             return (average_center);
@@ -320,6 +327,8 @@ public:
             return std::max(average_left, average_right);
         case CFAR_Types::SOCA:
             return std::min(average_left, average_right);
+        case CFAR_Types::median:
+            return median;
         default:
             return nanf("");
         }
@@ -340,42 +349,9 @@ public:
         for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
             for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
             {
-                thresholds[(int)algorithm_type][cell_under_test_number] = calculate_threshold(means[LEFT][cell_under_test_number], means[RIGHT][cell_under_test_number], means[CENTER][cell_under_test_number], algorithm_type) * threshold_factor;
+                thresholds[(int)algorithm_type][cell_under_test_number] = calculate_threshold(means[LEFT][cell_under_test_number], means[RIGHT][cell_under_test_number], means[CENTER][cell_under_test_number], means[MEDIAN][cell_under_test_number], algorithm_type) * threshold_factor;
             }
         return thresholds;
-    }
-
-    void prepare_detects_count_array(std::vector<std::vector<int>>& detects_and_false_detects_count) {
-        for (int i = 0; i < detects_and_false_detects_count.size(); i++)
-        {
-            detects_and_false_detects_count[i] = std::vector<int>(tested_parameters_table_size);
-        }
-        for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
-        {
-            for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
-            {
-                detects_and_false_detects_count[(int)algorithm_type][threshold_offset_index] = 0;
-                detects_and_false_detects_count[(int)algorithm_type + 3][threshold_offset_index] = 0;
-            }
-        }
-        return;
-    }
-
-    float choose_treshold(float threshold_factor, float threshold_base, int tested_values_index) {
-        float threshold;
-        switch (tested_parameter)
-        {
-        case TestedValues::threshold_factor:
-            threshold = threshold_base * tested_parameters_table[tested_values_index];
-            break;
-        case TestedValues::threshold_offset:
-            threshold = threshold_factor * threshold_base + tested_parameters_table[tested_values_index];
-            break;
-        default:
-            threshold = threshold_base;
-            break;
-        }
-        return threshold;
     }
 
     CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes_queue, float threshold_factor = 1)
@@ -385,18 +361,42 @@ public:
             signal[cell_number] = signal[cell_number] * signal[cell_number];
         }
         std::vector<std::vector<float>> means = calculate_means(signal, signal_length);
+        means.push_back(calculate_medians_with_zeros_on_both_sides(signal, signal_length));
         std::vector< std::vector<int> > detects_and_false_detects_count(2 * (int)CFAR_Types::end_of_enum);
-
-        prepare_detects_count_array(detects_and_false_detects_count);
-
+        for (int i = 0; i < detects_and_false_detects_count.size(); i++)
+        {
+            detects_and_false_detects_count[i] = std::vector<int>(tested_parameters_table_size);
+        }
+        for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
+        {
+            for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
+            {
+                detects_and_false_detects_count[(int)algorithm_type][threshold_offset_index] = 0;
+                detects_and_false_detects_count[(int)(CFAR_Types::end_of_enum)][threshold_offset_index] = 0;
+            }
+        }
         for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
         {
             for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
             {
-                float threshold_base = calculate_threshold(means[LEFT][cell_under_test_number], means[RIGHT][cell_under_test_number], means[CENTER][cell_under_test_number], algorithm_type);
+                float threshold_base = calculate_threshold(means[LEFT][cell_under_test_number], means[RIGHT][cell_under_test_number], means[CENTER][cell_under_test_number], means[MEDIAN][cell_under_test_number], algorithm_type);
                 for (int tested_values_index = 0; tested_values_index < tested_parameters_table_size; tested_values_index++)
                 {
-                    float threshold = choose_treshold(threshold_factor, threshold_base, tested_values_index);
+                    float threshold;
+                    switch (tested_parameter)
+                    {
+                    case TestedValues::threshold_factor:
+                        threshold = threshold_base * tested_parameters_table[tested_values_index];
+                        break;
+                    case TestedValues::threshold_offset:
+                        threshold = threshold_factor * threshold_base + tested_parameters_table[tested_values_index];
+                        break;
+                    default:
+                        threshold = threshold_base;
+                        break;
+                    }
+
+
                     if (threshold < signal[cell_under_test_number])
                     {
                         if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
@@ -405,12 +405,86 @@ public:
                         }
                         else
                         {
-                            detects_and_false_detects_count[3 + (int)algorithm_type][tested_values_index] += 1;
+                            detects_and_false_detects_count[(int)(CFAR_Types::end_of_enum) + (int)algorithm_type][tested_values_index] += 1;
                         }
                     }
                     else
                         break;
                 }
+            }
+            if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
+            {
+                object_indexes_queue.pop();
+            }
+        }
+        CFAROutput output(detects_and_false_detects_count);
+        return output;
+    }
+
+    CFAROutput find_objects(std::vector<float> signal, unsigned int signal_length, std::queue<int> object_indexes_queue, CFAR_Types algorithm_type, float threshold_factor = 1)
+    {
+        for (int cell_number = 0; cell_number < signal_length; cell_number++)
+        {
+            signal[cell_number] = signal[cell_number] * signal[cell_number];
+        }
+        std::vector<std::vector<float>> means;
+        if (algorithm_type == CFAR_Types::median)
+        {
+            means.push_back(calculate_medians_with_zeros_on_both_sides(signal, signal_length));
+        }
+        else
+            means = calculate_means(signal, signal_length);
+        
+        std::vector< std::vector<int> > detects_and_false_detects_count(2 * (int)CFAR_Types::end_of_enum);
+        for (int i = 0; i < detects_and_false_detects_count.size(); i++)
+        {
+            detects_and_false_detects_count[i] = std::vector<int>(tested_parameters_table_size);
+        }
+        for (int threshold_offset_index = 0; threshold_offset_index < tested_parameters_table_size; threshold_offset_index++)
+        {
+            for (CFAR_Types algorithm_type = (CFAR_Types)0; algorithm_type < CFAR_Types::end_of_enum; algorithm_type = (CFAR_Types)((int)algorithm_type + 1))
+            {
+                detects_and_false_detects_count[(int)algorithm_type][threshold_offset_index] = 0;
+                detects_and_false_detects_count[(int)(CFAR_Types::end_of_enum)][threshold_offset_index] = 0;
+            }
+        }
+        for (int cell_under_test_number = 0; cell_under_test_number < signal_length; cell_under_test_number++)
+        {
+            float threshold_base;
+            if(algorithm_type == CFAR_Types::median)
+                threshold_base = calculate_threshold(NULL, NULL, NULL, means[0][cell_under_test_number], algorithm_type);
+            else
+                threshold_base = calculate_threshold(means[LEFT][cell_under_test_number], means[RIGHT][cell_under_test_number], means[CENTER][cell_under_test_number], NULL, algorithm_type);
+            for (int tested_values_index = 0; tested_values_index < tested_parameters_table_size; tested_values_index++)
+            {
+                float threshold;
+                switch (tested_parameter)
+                {
+                case TestedValues::threshold_factor:
+                    threshold = threshold_base * tested_parameters_table[tested_values_index];
+                    break;
+                case TestedValues::threshold_offset:
+                    threshold = threshold_factor * threshold_base + tested_parameters_table[tested_values_index];
+                    break;
+                default:
+                    threshold = threshold_base;
+                    break;
+                }
+
+
+                if (threshold < signal[cell_under_test_number])
+                {
+                    if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
+                    {
+                        detects_and_false_detects_count[(int)algorithm_type][tested_values_index] += 1;
+                    }
+                    else
+                    {
+                        detects_and_false_detects_count[(int)(CFAR_Types::end_of_enum)+(int)algorithm_type][tested_values_index] += 1;
+                    }
+                }
+                else
+                    break;
             }
             if (!object_indexes_queue.empty() && cell_under_test_number == object_indexes_queue.front())
             {
@@ -526,6 +600,7 @@ public:
     ProbabilitiesForMultipleThresholdFactors probabilitiesCA;
     ProbabilitiesForMultipleThresholdFactors probabilitiesGOCA;
     ProbabilitiesForMultipleThresholdFactors probabilitiesSOCA;
+    ProbabilitiesForMultipleThresholdFactors probabilitiesMedian;
 
     SimulationThread(CFAR& cfar, Signal& signal)
     {
@@ -534,6 +609,7 @@ public:
         probabilitiesCA = ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
         probabilitiesGOCA = ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
         probabilitiesSOCA = ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
+        probabilitiesMedian = ProbabilitiesForMultipleThresholdFactors(CFAR_MIN_TESTED_VALUE, CFAR_MAX_TESTED_VALUE, CFAR_DALTA_TESTED_VALUE);
     }
 
     void export_to_csv()
@@ -541,6 +617,7 @@ public:
         probabilitiesCA.export_to_csv("output/outputCA.csv");
         probabilitiesGOCA.export_to_csv("output/outputGOCA.csv");
         probabilitiesSOCA.export_to_csv("output/outputSOCA.csv");
+        probabilitiesMedian.export_to_csv("output/outputMedian.csv");
     }
 
     void start_simulation(int number_of_tests, int number_of_thread = 0)
@@ -550,12 +627,13 @@ public:
         for (int counter = 0; counter < number_of_tests; counter++)
         {
             signal.signal_and_noise_generation(OBJECT_DISTANCE);
-            cfar.tested_parameter = CFAR::TestedValues::threshold_factor;
+            cfar.tested_parameter = CFAR::TestedValues::threshold_offset;
             CFAROutput cfar_output = cfar.find_objects(signal.samples, signal.length, signal.object_indexes_queue);
 
-            probabilitiesCA.add(cfar_output.detectsCA, cfar_output.false_detectsCA, signal.length);
-            probabilitiesGOCA.add(cfar_output.detectsGOCA, cfar_output.false_detectsGOCA, signal.length);
-            probabilitiesSOCA.add(cfar_output.detectsSOCA, cfar_output.false_detectsSOCA, signal.length);
+            probabilitiesCA.add(cfar_output.detectsCA, cfar_output.false_detectsCA, signal.length, NUMBER_OF_OBJECTS);
+            probabilitiesGOCA.add(cfar_output.detectsGOCA, cfar_output.false_detectsGOCA, signal.length, NUMBER_OF_OBJECTS);
+            probabilitiesSOCA.add(cfar_output.detectsSOCA, cfar_output.false_detectsSOCA, signal.length, NUMBER_OF_OBJECTS);
+            probabilitiesMedian.add(cfar_output.detectsMedian, cfar_output.false_detectsMedian, signal.length, NUMBER_OF_OBJECTS);
             if (counter % 1000 == 0)
                 std::cout << "thread " << number_of_thread << " reached " << counter << " tests\n";
         }
@@ -564,6 +642,7 @@ public:
         std::cout << "thread " << number_of_thread << " finished\n";// after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
 
     }
+
     ~SimulationThread()
     {
 
@@ -573,6 +652,47 @@ public:
         probabilitiesCA.add(finished_simulation.probabilitiesCA);
         probabilitiesGOCA.add(finished_simulation.probabilitiesGOCA);
         probabilitiesSOCA.add(finished_simulation.probabilitiesSOCA);
+        probabilitiesMedian.add(finished_simulation.probabilitiesMedian);
+    }
+};
+
+class SimulationWithTimer : public SimulationThread
+{
+    using SimulationThread::SimulationThread;
+public:
+    int time;
+    void start_simulation(int number_of_tests, CFAR::CFAR_Types algorithm, int number_of_thread = 0)
+    {
+        //std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+        std::cout << "thread " << number_of_thread << " started\n";
+        for (int counter = 0; counter < number_of_tests; counter++)
+        {
+            signal.signal_and_noise_generation(OBJECT_DISTANCE);
+            cfar.tested_parameter = CFAR::TestedValues::threshold_offset;
+            CFAROutput cfar_output = cfar.find_objects(signal.samples, signal.length, signal.object_indexes_queue, algorithm);
+            switch (algorithm)
+            {
+            case CFAR::CFAR_Types::CA:
+                probabilitiesCA.add(cfar_output.detectsCA, cfar_output.false_detectsCA, signal.length, NUMBER_OF_OBJECTS);
+                break;
+            case CFAR::CFAR_Types::GOCA:
+                probabilitiesGOCA.add(cfar_output.detectsGOCA, cfar_output.false_detectsGOCA, signal.length, NUMBER_OF_OBJECTS);
+                break;
+            case CFAR::CFAR_Types::SOCA:
+                probabilitiesSOCA.add(cfar_output.detectsSOCA, cfar_output.false_detectsSOCA, signal.length, NUMBER_OF_OBJECTS);
+                break;
+            case CFAR::CFAR_Types::median:
+                probabilitiesMedian.add(cfar_output.detectsMedian, cfar_output.false_detectsMedian, signal.length, NUMBER_OF_OBJECTS);
+                break;
+            }
+            if (counter % 1000 == 0)
+                std::cout << "thread " << number_of_thread << " reached " << counter << " tests\n";
+        }
+        //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        std::cout << "thread " << number_of_thread << " finished after " << std::chrono::duration_cast<std::chrono::seconds>(end - begin).count() << "[s]" << std::endl;
+        time = std::chrono::duration_cast<std::chrono::seconds>(end - begin).count();
     }
 };
 
@@ -584,7 +704,7 @@ int main()
     float amplitude = (float)pow(10, (float)SNR_dB / 20) * SIGMA;
     Signal signal(SIGMA, DATA_LENGTH, SNR_dB, CFAR_GUARD_CELLS,
         { amplitude, amplitude * 1000 });
-    SimulationThread* simulation[NUMBER_OF_THREADS];
+    SimulationWithTimer* simulation[NUMBER_OF_THREADS];
 
     std::thread simulation_thread[NUMBER_OF_THREADS];
 
@@ -592,8 +712,8 @@ int main()
 
     for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
     {
-        simulation[number_of_thread] = new SimulationThread(cfar, signal);
-        simulation_thread[number_of_thread] = std::thread(&SimulationThread::start_simulation, simulation[number_of_thread], TESTS_PER_THREAD, number_of_thread);
+        simulation[number_of_thread] = new SimulationWithTimer(cfar, signal);
+        simulation_thread[number_of_thread] = std::thread(&SimulationWithTimer::start_simulation, simulation[number_of_thread], TESTS_PER_THREAD, CFAR::CFAR_Types::TESTED_TYPE, number_of_thread);
     }
     for (int number_of_thread = 0; number_of_thread < NUMBER_OF_THREADS; number_of_thread++)
     {
