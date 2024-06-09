@@ -12,7 +12,7 @@ Guards cells are used due to object not being one single spike among the noise.
 * CA - cell averaging 
 * GOCA - greatest-of cell averaging 
 * SOCA - smallest-of cell averaging
-
+* OS – order statistic
 
 Names of these algorithms refers to system of choosing threshold.
 
