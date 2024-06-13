@@ -80,9 +80,9 @@ private:
             shadow.push_back((float)pow(sin(0.5*i)/(0.5*i),2) * amplitude);
         }
         std::vector<float> output = {};
-        output.insert( output.end(), shadow.begin(), shadow.end() );
-        output.push_back(amplitude);
         output.insert( output.end(), shadow.rbegin(), shadow.rend() );
+        output.push_back(amplitude);
+        output.insert( output.end(), shadow.begin(), shadow.end() );
         return output;
     }
 
