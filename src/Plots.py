@@ -9,7 +9,7 @@ class CreatePlots:
     def __init__(self):
         self.inputs_list = []
         self.number_of_algorithms = 4*2
-        self.algorithms_names = ['CFAR CA', 'CFAR GOCA', 'CFAR SOCA', 'CFAR OS', 'gówno', 'gówno', 'gówno', 'gówno']
+        self.algorithms_names = ['CFAR CA', 'CFAR GOCA', 'CFAR SOCA', 'CFAR OS']
 
         for i in range(3*self.number_of_algorithms):
             self.inputs_list.append([])
